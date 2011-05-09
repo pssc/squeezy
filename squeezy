@@ -570,7 +570,7 @@ sub command
 		  # various combinations of included or excluded trailing
 		  # backslashes
 		  $play = realpath($play);
-		  $play =~ s:^:$prefixpre:;
+		  $play =~ s:^$prefixpre::;
 		  $play = $prefixpos ? "$prefixpos$play" : $play;
 	       }
 	       $play = urlencode $play;
