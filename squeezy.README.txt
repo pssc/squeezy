@@ -1,0 +1,207 @@
+
+Copyright:
+   Stephen Blott
+   smblott@gmail.com
+
+License:
+   MIT license
+   http://opensource.org/licenses/mit-license.php
+
+Introduction:
+   squeezy is a command-line wrapper around squeezeserver's telnet/CLI
+   interface.  It can be used from the command line in scripts or from
+   cron.
+
+Examples:
+   squeezy -on
+   squeezy -sleep 60
+   squeezy -play some_file
+   squeezy -play some_url
+   squeezy -play .         # play the songs in the current directory
+   squeezy -next
+   squeezy -previous
+   squeezy -kitchen -volume 14
+   squeezy -kitchen -volume +5
+   squeezy -bedroom -sleep 40
+   squeezy -kitchen -some_shortcut
+   squeezy -button some_button
+   squeezy -pause
+   ... etc
+
+   ("kitchen" and "bedroom" here would be the names of your players)
+
+Why?
+   - I've had my players since 2005 and the buttons on the remotes are
+     packing up; I listen to squeezeboxes all the time, but with squeezy
+     I rarely have to touch the remotes
+
+   - the web interface is too slow
+
+   - you're a geek, and you get things done faster at the keyboard
+
+   - it's scriptable
+
+   - squeezy integrates well with desktop menuing systems or with cron;
+     here are some cron examples:
+
+     30 20 * * * chronic squeezy -bedroom -exit_if_playing -volume 22 -dvb
+     00 23 * * * chronic squeezy -bedroom -volume -1
+     30 23 * * * chronic squeezy -bedroom -volume -2
+     00 00 * * * chronic squeezy -bedroom -volume -1
+     30 00 * * * chronic squeezy -bedroom -volume -1
+     00 01 * * * chronic squeezy -bedroom -volume -1
+     30 02 * * * chronic squeezy -all -off
+     30 06 * * * chronic squeezy -bedroom -exit_if_playing -volume 17 -dvb
+
+     chronic is part of of the moreutils package
+        - http://kitenet.net/~joey/code/moreutils/
+
+      turn on the squeezebox in my bedroom a 8.30 playing my favourite
+      radio station and at volume 22;  however, the -exit_if_playing
+      options tells squeezy NOT to do this if the player happens already
+      to be on
+
+      from 11.00 onwards, the volume is gradually reduced and then at
+      2.30 this (and all my other players) are turned off
+
+      turn the player on again a 6.30 in the morning, but at a lower
+      volume level; again, do this only if the player is not already on
+
+      the '-dvb' is a shortcut in my configuration file; it plays my
+      favourite radio station
+
+   - another cron example:
+
+     */8 1-6 * * * chronic squeezy -bedroom -exit_if_sleeping -sleep 30
+
+     if I wake up and turn a player on during the night, it'll
+     automatically go to sleep after about half an hour
+
+   - and another cron example:
+
+     30 05 * * sun chronic squeezy -all -die_if_playing || chronic SOME_COMMAND_TO_SET_THE_RADIO_STATION 
+
+     I listen to various radio stations, but want a particular one
+     playing in the morning; this changes to that station, but only if
+     I'm not actually listening to any of my squeezeboxes already
+
+     SOME_COMMAND_TO_SET_THE_RADIO_STATION is actually a command to set
+     the tuner on my DVB card
+
+Dependencies:
+   - squeezy has been written and runs on FreeBSD and Ubuntu; it
+     shouldn't be too hard to get it to work on other Unix and Unix-like
+     systems (including Macs); but it may be more difficult to get it to
+     work on other popular operating systems
+
+   - squeezy uses the telnet/CLI interface of the squeezebox server;
+     this hasn't changed significantly in many years, so it should work
+     with pretty much any server more recent than about five years old
+
+   - squeezy is written in "perl", any reasonably-recent perl version
+     should do
+
+   - Non-software:
+     if you haven't done so already, then use your squeezeserver's web
+     interface to give your players suitable human-readable names (such
+     as "Kitchen", or "Bedroom"); these names must not contain
+     whitespace characters.
+
+Installation:
+   1. put the file "squeezy" into some suitable place (such as
+      ~/bin/, /usr/local/bin/, or /usr/bin/) and make it executable
+
+   2. edit "squeezy.conf" to match your own setup.  You MUST do this;
+      squeezy will not do much without a suitable configuration file
+
+   3. install "squeezy.conf" in some suitable location;  squeezy looks
+      for its configuration file in the following locations:
+
+	   ./squeezy.conf
+	   $HOME/.squeezy.conf
+	   $HOME/.config/squeezy/squeezy.conf
+	   $HOME/.config/squeezy.conf
+	   /usr/local/etc/squeezy.conf
+	   /etc/squeezy.conf
+   
+      it chooses the first (readable) file it finds.
+
+Usage:
+   try "squeezy -help"; "squeezy -otions" might be helpful too
+
+Tips:
+   -  try "squeezy -printlinks"; this outputs a list of commands to
+      install an alias for squeezy for each of your players; for example,
+      for me its output is:
+
+	 ln -vf /usr/local/bin/squeezy /usr/local/bin/kitchen
+	 ln -vf /usr/local/bin/squeezy /usr/local/bin/living
+	 ln -vf /usr/local/bin/squeezy /usr/local/bin/bedroom
+	 ln -vf /usr/local/bin/squeezy /usr/local/bin/nico
+	 ln -vf /usr/local/bin/squeezy /usr/local/bin/chrissy
+
+   then use:
+
+      squeezy -print-links | sudo sh
+
+   to install the links (you may need 'sudo')
+
+   WARNING: make sure your player names do not clash with existing command names
+   before doing this
+
+   you can then do things like:
+
+      kitchen -off
+      bedroom -volume 12
+
+   where 'kitchen' and 'bedroom' are the names of your players.
+
+   -  take a look at 'chronic' from the moreutils package, it helps
+      when writing nice clean crontab files
+
+      also, the -exit_if_playing option is particularly useful in
+      crontab files
+
+   -  bash completion;  put the following into your "$HOME/.bashrc" to
+      enable option completion
+
+	 _squeezey() 
+	 {
+	     local cur prev opts
+	     COMPREPLY=()
+	     cur="${COMP_WORDS[COMP_CWORD]}"
+	     prev="${COMP_WORDS[COMP_CWORD-1]}"
+
+	     if [[ ${cur} == -* ]] ; then
+		 opts=`squeezy -options`
+		 COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
+		 return 0
+	     fi
+
+	     if [[ ${prev} == -sync ]] ; then
+		 opts=`squeezy -players`
+		 COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
+		 return 0
+	     fi
+
+	     if [[ ${prev} == -play ]] ; then
+		_filedir
+		 return 0
+	     fi
+
+	     if [[ ${prev} == -add ]] ; then
+		_filedir
+		 return 0
+	     fi
+
+	 }
+
+	 for player in squeezy $(squeezy -players)
+	 do
+	    player_lc=$(echo $player | tr 'A-Z' 'a-z')
+	    complete -F _squeezy $player_lc
+	 done
+   
+   -  I also have the zsh completion function, but need to extract it from my
+      own setup -- ask if you're interested
+
