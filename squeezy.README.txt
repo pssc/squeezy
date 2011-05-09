@@ -162,46 +162,5 @@ Tips:
       also, the -exit_if_playing option is particularly useful in
       crontab files
 
-   -  bash completion;  put the following into your "$HOME/.bashrc" to
-      enable option completion
-
-	 _squeezey() 
-	 {
-	     local cur prev opts
-	     COMPREPLY=()
-	     cur="${COMP_WORDS[COMP_CWORD]}"
-	     prev="${COMP_WORDS[COMP_CWORD-1]}"
-
-	     if [[ ${cur} == -* ]] ; then
-		 opts=`squeezy -options`
-		 COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
-		 return 0
-	     fi
-
-	     if [[ ${prev} == -sync ]] ; then
-		 opts=`squeezy -players`
-		 COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
-		 return 0
-	     fi
-
-	     if [[ ${prev} == -play ]] ; then
-		_filedir
-		 return 0
-	     fi
-
-	     if [[ ${prev} == -add ]] ; then
-		_filedir
-		 return 0
-	     fi
-
-	 }
-
-	 for player in squeezy $(squeezy -players)
-	 do
-	    player_lc=$(echo $player | tr 'A-Z' 'a-z')
-	    complete -F _squeezy $player_lc
-	 done
-   
-   -  I also have the zsh completion function, but need to extract it from my
-      own setup -- ask if you're interested
-
+   -  files are included in the distribution for TAB-completion in both
+      zsh and bash

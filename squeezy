@@ -159,6 +159,16 @@ while ( ! $player )
 push @group, [ @player ];
 
 #
+# strip any trailing '/'s from $prefixpre and $prefixpos
+#
+
+if ( $prefixpre )
+   { $prefixpre =~ s:/+$::; }
+
+if ( $prefixpos )
+   { $prefixpos =~ s:/+$::; }
+
+#
 # utilities
 #
 
@@ -563,15 +573,12 @@ sub command
 	    sub
 	    {
 	       my $play = shift;
-	       my $oper = shift || 'play';
+	       my $oper = shift || 'play'; # can be 'add'
 	       if ( -r $play )
 	       {
-		  # need to check this; specifically, this needs to handle
-		  # various combinations of included or excluded trailing
-		  # backslashes
 		  $play = realpath($play);
-		  $play =~ s:^$prefixpre::;
-		  $play = $prefixpos ? "$prefixpos$play" : $play;
+		  $play =~ s:^$prefixpre::; # $play should still have a leading '/' here
+		  $play = "$prefixpos$play";
 	       }
 	       $play = urlencode $play;
 	       send_command "$player playlist $oper $play";
@@ -581,7 +588,7 @@ sub command
 
    '-playercount' =>
       {
-	 help    => 'report the count of connected players',
+	 help    => 'report the number of connected players',
 	 command  => sub { report 'player count', pick_field 2, send_command 'player count ?'; }
       },
 

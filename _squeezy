@@ -11,7 +11,7 @@
 #
 # to avoid having to fire up several processes (one of which being a big perl
 # process) this completer caches the available options in $cache (see below)
-# #
+#
 
 local squeezy=`whence -p squeezy`
 local cache="$HOME/.squeezy_zsh_completion_cache"
