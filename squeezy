@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #
 # Version:
-#    0.1
+#    0.11
 #
 # Copyright:
 #    Stephen Blott (smblott@gmail.com)
@@ -10,13 +10,12 @@
 #    MIT license
 #    http://opensource.org/licenses/mit-license.php
 #
+# Project home:
+#    - http://code.google.com/p/squeezy/
+#
 # See also:
 #    squeezy.README.txt
 #    squeezy.conf
-#
-# TODO:
-#    test exit_if_sleeping
-#    playlists?
 #
 
 use strict;
@@ -37,7 +36,7 @@ use Cwd 'realpath';
 my $conf_base = 'squeezy.conf';
 my $conf_locs = qq( ./$conf_base
 		    $ENV{HOME}/.$conf_base
-		    $ENV{HOME}/.config/squeeze/$conf_base
+		    $ENV{HOME}/.config/squeezy/$conf_base
 		    $ENV{HOME}/.config/$conf_base
 		    /usr/local/etc/$conf_base
 		    /etc/$conf_base );
@@ -62,6 +61,7 @@ my @group;
 my %shortcut;
 my $default    =  undef;
 my $group      =  undef;
+my $silent     =  undef;
 my $little     = '3';
 my $lot        = '10';
 my $prefixpre  = '';
@@ -74,64 +74,45 @@ my %command;
 #
 
 open CONFIG, "<$conf_file"
-   or die "squeezy: open of config file failed ($conf_file)\n";
+   or die "squeezy: open of configuration file failed ($conf_file)\n";
 
 foreach ( <CONFIG> )
 {
-   s/#.*//;  # strip comments
-   s/^\s*//; # strip leading whitespace
-   s/\s*$//; # strip trailing whitespace
-
+   s/#.*//;       # strip comments
+   s/^\s*//;      # strip leading whitespace
+   s/\s*$//;      # strip trailing whitespace
    $_ || do next; # skip empty lines
 
    my @arg = split /\s+/;
 
-   $arg[0] eq 'server' && $#arg == 1
-      && do { $server = $arg[1]; next; };
-
-   $arg[0] eq 'port' && $#arg == 1
-      && do { $port = $arg[1]; next; };
-
-   $arg[0] eq 'username' && $#arg == 1
-      && do { $username = $arg[1]; next; };
-
-   $arg[0] eq 'password' && $#arg == 1
-      && do { $password = $arg[1]; next; };
+   $arg[0] eq 'server'   && $#arg == 1 && do { $server   = $arg[1]; next; };
+   $arg[0] eq 'port'     && $#arg == 1 && do { $port     = $arg[1]; next; };
+   $arg[0] eq 'username' && $#arg == 1 && do { $username = $arg[1]; next; };
+   $arg[0] eq 'password' && $#arg == 1 && do { $password = $arg[1]; next; };
 
    $arg[0] eq 'player'
       && do
-      {
-	 if ( $#arg == 1 ) { push @{$group[0]},       $arg[1]; next; }
-	 if ( $#arg == 2 ) { push @{$group[$arg[1]]}, $arg[2]; next; }
-      };
+      {  if ( $#arg == 1 ) { push @{$group[0]},       $arg[1]; next; }
+	 if ( $#arg == 2 ) { push @{$group[$arg[1]]}, $arg[2]; next; } };
 
    $arg[0] eq 'shortcut' && $#arg == 2
       && do
-      {
-	 $default = $arg[2] unless $default;
+      {  $default = $arg[2] unless $default;
 	 $shortcut{$arg[1]} = $arg[2];
-	 next;
-      };
+	 next; };
 
-   $arg[0] eq 'small_volume' && $#arg == 1 && $arg[1] =~ m/^[0-9]+$/
-      && do { $little = $arg[1]; next; };
-
-   $arg[0] eq 'large_volume' && $#arg == 1 && $arg[1] =~ m/^[0-9]+$/
-      && do { $lot = $arg[1]; next; };
+   $arg[0] eq 'small_volume' && $#arg == 1 && $arg[1] =~ m/^[0-9]+$/ && do { $little = $arg[1]; next; };
+   $arg[0] eq 'large_volume' && $#arg == 1 && $arg[1] =~ m/^[0-9]+$/ && do { $lot    = $arg[1]; next; };
 
    $arg[0] eq 'prefixpre'
       && do
-      {
-	 if ( $#arg == 0 ) { next; }
-	 if ( $#arg == 1 ) { $prefixpre = $arg[1]; next; }
-      };
+      {  if ( $#arg == 0 ) { next; }
+	 if ( $#arg == 1 ) { $prefixpre = $arg[1]; next; } };
 
    $arg[0] eq 'prefixpos'
       && do
-      {
-	 if ( $#arg == 0 ) { next; }
-	 if ( $#arg == 1 ) { $prefixpos = $arg[1]; next; }
-      };
+      {  if ( $#arg == 0 ) { next; }
+	 if ( $#arg == 1 ) { $prefixpos = $arg[1]; next; } };
 
    die "error in $conf_file: $_\n"
 }
@@ -162,11 +143,8 @@ push @group, [ @player ];
 # strip any trailing '/'s from $prefixpre and $prefixpos
 #
 
-if ( $prefixpre )
-   { $prefixpre =~ s:/+$::; }
-
-if ( $prefixpos )
-   { $prefixpos =~ s:/+$::; }
+if ( $prefixpre ) { $prefixpre =~ s:/+$::; }
+if ( $prefixpos ) { $prefixpos =~ s:/+$::; }
 
 #
 # utilities
@@ -197,9 +175,11 @@ sub report
    return $value;
 }
 
-#
-# send a command to the server and wait for and return its respnse
-#
+sub terminal_cols
+{
+   -t STDOUT || return undef;
+   return (map { chomp; $_ } `tput co`)[0];
+}
 
 my $socket = undef;
 
@@ -217,12 +197,14 @@ sub send_command
 
       if ( $username )
       {
+	 if ( ! $password )
+	    { die "squeezy error: username provided, but no password provided (username='$username')\n"; }
 	 print $socket "login $username $password\n";
-	 # ignore the following response; even with an incorrect password the
-	 # server happily echos it back to you
+	 # ignore the following response; even with an incorrect
+	 # username/password the server happily echos it back
 	 my $response = <$socket>;
       }
-      # force some unnecessary client/server interaction in order to to detect
+      # force some unnecessary client/server interaction in order to detect
       # an authentication failure
       print $socket "player count ?\n";
       if ( ! $socket->connected() || ! <$socket> )
@@ -234,18 +216,22 @@ sub send_command
 
    print $socket join(" ", @_), "\n";
    my $response = <$socket>;
+
+   if ( ! $socket->connected() )
+      { die "squeezy error: server dropped socket connection\n"; }
+
    chomp $response;
    return $response;
 }
 
 #
-# listen (subscribe) wrapper functions
+# listen output wrapper functions
 #
 
 sub listen_output
 {
    # this is just an output hook, it's somewhere to put post-processing
-   # triggers for -listen output
+   # triggers for the -listen output
    #
    # if we see a "new song", then request full status from the player
    #
@@ -270,7 +256,7 @@ sub listen
       listen_output 'player', 'id', $i, $id;
    }
 
-   # the &send_command() calls above force $socket to be open by this point
+   # the &send_command() calls above force $socket to be open by here
    my $select = IO::Select->new($socket);
    STDOUT->autoflush(1);
 
@@ -281,6 +267,7 @@ sub listen
       while ( $select->can_read($wait) )
       {
 	 my $line = <$socket>;
+	 chomp $line;
 	 my @line = split(/\s+/, $line, 3);
 
 	 if ( $line[1] eq 'status' )
@@ -311,7 +298,7 @@ sub listen
 
    for (my $i=0; $i<$count; $i+=1)
    {
-      print $socket "$ids[$i] status - 1 tags\n";
+      print $socket "$ids[$i] status - 1\n";
       socket_input(0); # 0 here means do not block
    }
 
@@ -348,27 +335,27 @@ sub command
 
    '-add' =>
       {
-	 help     => 'add the named file, directory (contents), playlist or url to the playlist',
+	 help     => 'add the indicated file, directory (contents), playlist or url to the playlist',
 	 do_shift => 1,
 	 command  => sub { command -play, shift, 'add'; }
       },
 
    '-all' =>
       {
-	 help     => 'apply subsequent commands to all players',
+	 help     => 'apply subsequent commands to all players (eg. squeezy -all -off)',
 	 command  => sub { $group = $#group; }
       },
 
    '-button' =>
       {
-	 help     => 'send a button key command to the player (see the server "Default.map" file)',
+	 help     => 'send a button key command to the player (see the server\'s "Default.map" file)',
 	 do_shift => 1,
 	 command  => sub { send_command $player, 'button', $_[0]; }
       },
 
    '-default' =>
       {
-	 help    => "play the default shortcut ($default)",
+	 help    => "play the default shortcut (the first one in the configuration file, currently $default)",
 	 command =>
 	    sub
 	    {
@@ -386,6 +373,12 @@ sub command
 		     { print "$player is on and playing, exiting immediately\n"; exit(1); } }
       },
 
+   '-elapsed' =>
+      {
+	 help    => 'show the elapsed time in currently-playing track/url',
+	 command => sub { report 'time', pick_field 2, send_command "$player time ?"; }
+      },
+
    '-exit_if_playing' =>
       {
 	 help    => 'if this player is on and playing, then exit immediately; exit code 0',
@@ -398,13 +391,14 @@ sub command
       {
 	 help    => 'if this player is on and is timing down to sleep, then exit immediately; exit code 0',
 	 command =>
-	    sub { if ( command('-power') && command('-sleep') )
+	    sub {
+	       if ( command('-power') && command('-sleeping') )
 		     { print "$player is on and timing down to sleep, exiting immediately\n"; exit(0); } }
       },
 
    '-group' =>
       {
-	 help     => 'apply subsequent command to all players in this group',
+	 help     => 'apply subsequent command to all players in this group (eg. squeezy -group 1)',
 	 do_shift => 1,
 	 command  =>
 	    sub
@@ -419,7 +413,7 @@ sub command
 
    '-groups' =>
       {
-	 help     => 'show (on standard output) the configured player groups',
+	 help     => 'show the configured player groups',
 	 command  =>
 	    sub
 	    {
@@ -438,62 +432,60 @@ sub command
 	 command =>
 	    sub
 	    {
-	       print "configuration file search locations:\n";
+	       print "configuration file:\n   $conf_file\n";
+	       print "\nconfiguration file search locations:\n";
 	       foreach ( map { $_ ? $_ : () } split /\s+/, $conf_locs )
 		  { print "   $_\n"; }
-	       print "\noptions:\n";
+	       print "\ncommand-line options:\n";
 	       foreach my $command ( sort keys %command )
 	       {
 		  if ( $command{$command}->{help} )
 		  {
 		     my $argument = $command{$command}->{do_shift} ? ' <arg>' : '';
-		     print sprintf "%-17s: %s\n", "$command$argument", $command{$command}->{help};
+		     print sprintf "%-18s: %s\n", "$command$argument", $command{$command}->{help};
 		  }
 	       }
 	    }
       },
 
-   '--help' =>
-      {
-	 help    => 'synonym for -help, show this message',
-	 command => sub { command -help; },
-      },
-
    '-jump' =>
       {
-	 help     => 'jump to an absolute or relative position (measured in seconds; eg. 10, +30, -30)',
+	 help     => 'jump to a track on the current playlist (relative or absolute, eg. 3, +2, -4)',
 	 do_shift => 1,
 	 command  =>
 	    sub
 	    {
-	       my $time = shift;
-	       if ( ! ( $time =~ m/^[+-]?[0-9]{1,}$/ ) )
-		  { die "squeezy -jump: invalid time specifier ($time)\n"; }
-	       report 'jump', pick_field 2, send_command "$player time $time";
+	       my $target = shift;
+	       if ( ! ( $target =~ m/^[+-]?[0-9]{1,}$/ ) )
+		  { die "squeezy -jump: invalid jump specifier ($target)\n"; }
+	       my $count = command -playlist_length;
+	       my $index = command -playlist_index;
+	       report 'new track', pick_field 3, send_command "$player playlist index $target";
+	       command -playing;
 	    }
       },
 
    '-listen' =>
       {
-	 help     => 'listen to squeezeserver activity (delivered on standard output)',
+	 help     => 'listen to squeezeserver activity (on standard output, see also \'-tick\')',
 	 command  => sub { &listen(); }
       },
 
    '-louder' =>
       {
-	 help    => "increase the volume slightly (by $little/100)",
+	 help    => "increase the volume slightly (by $little%)",
 	 command => sub { command -volume, "+$little"; }
       },
 
    '-Louder' =>
       {
-	 help    => "increase the volume significantly (by $lot/100)",
+	 help    => "increase the volume significantly (by $lot%)",
 	 command => sub { command -volume, "+$lot" }
       },
 
    '-mode' =>
       {
-	 help    => "report the player's mode",
+	 help    => 'show the player\'s mode ("play", "stop" or "pause")',
 	 command =>
 	    sub
 	    {
@@ -514,7 +506,7 @@ sub command
 
    '-next' =>
       {
-	 help    => 'advance to the next track on the playlist',
+	 help    => 'jump to the next track on the playlist',
 	 command =>
 	    sub
 	    {
@@ -525,12 +517,13 @@ sub command
 
    '-on' =>
       {
-	 help    => 'turn player on and start playing',
+	 help    => 'turn player on and start playing the current playlist/track',
 	 command =>
 	    sub
 	    {
 	       send_command "$player power 1";
 	       send_command "$player pause 0";
+	       command -power;
 	       command -mode;
 	       command -playing;
 	    }
@@ -550,7 +543,6 @@ sub command
    '-options' =>
       {
 	 help    => 'list all options to standard output (useful for configuring shell completion)',
-	 # command => sub { print map { "$_\n"  } sort keys %command; }
 	 command => sub { print join(' ', sort keys %command), "\n"; }
       },
 
@@ -567,13 +559,13 @@ sub command
 
    '-play' =>
       {
-	 help     => 'play the named file, directory (contents), playlist or url',
+	 help     => 'play the indicated file, directory (contents), playlist or url',
 	 do_shift => 1,
 	 command  =>
 	    sub
 	    {
 	       my $play = shift;
-	       my $oper = shift || 'play'; # can be 'add'
+	       my $oper = shift || 'play'; # can also be 'add'
 	       if ( -r $play )
 	       {
 		  $play = realpath($play);
@@ -586,51 +578,112 @@ sub command
 	    }
       },
 
-   '-playercount' =>
+   '-player_count' =>
       {
-	 help    => 'report the number of connected players',
+	 help    => 'show the number of connected players',
 	 command  => sub { report 'player count', pick_field 2, send_command 'player count ?'; }
       },
 
-   '-playerid' =>
+   '-player_id' =>
       {
-	 help     => 'report the id of the player',
+	 help     => 'show the id of the player',
 	 command  => sub { report 'player id',  pick_field 3, send_command "player id $player ?"; }
       },
 
-   '-playerip' =>
+   '-player_ip' =>
       {
-	 help     => 'report the ip address of the player',
+	 help     => 'show the ip address of the player',
 	 command  => sub { report 'player IP',  pick_field 3, send_command "player ip $player ?"; }
       },
 
-   '-playermodel' =>
+   '-playlist' =>
       {
-	 help     => 'report the model of the player',
+	 help     => 'show the current playlist',
+	 command  =>
+	    sub
+	    {
+	       my $count = command -playlist_length;
+	       my $index = command -playlist_index;
+	       my $cols  = terminal_cols();
+	       for (my $i=0; $i<$count; $i+= 1)
+	       {
+		  my $album  = pick_field 4, send_command "$player playlist album  $i ?";
+		  my $artist = pick_field 4, send_command "$player playlist artist $i ?";
+		  my $title  = pick_field 4, send_command "$player playlist title  $i ?";
+		  if ( $cols )
+		  {
+		     my $left  = sprintf "%s %-3d %s", $i == $index ? '>' : ' ', $i, $title;
+		     my $right = sprintf "%${cols}s", "$album - $artist";
+		     my $line  = sprintf "%s %s", $left, substr($right, length($left)+1);
+		     print substr($line,0,$cols), "\n";
+		  }
+		  else
+		  {
+		     print $i == $index ? '> ' : '  ';
+		     print sprintf "%-3d ", $i;
+		     print "$title; $album - $artist\n";
+		  }
+	       }
+	    }
+      },
+
+   '-playlist_delete' =>
+      {
+	 help     => 'delete (or remove) an item from the current playlist (eg. \'-playlist_delete 3\')',
+	 do_shift => 1,
+	 command  =>
+	    sub
+	    {
+	       my $target = shift;
+	       if ( ! ( $target =~ m/^[0-9]{1,}$/ ) )
+		  { die "squeezy -playlist_delete: invalid playlist specifier ($target)\n"; }
+	       my $count = command -playlist_length;
+	       if ( $count <= $target )
+		  { die "squeezy -playlist_delete: invalid playlist specifier, too big ($target)\n"; }
+	       report 'playlist delete', pick_field 3, send_command "$player playlist delete $target";
+	       command -playing;
+	    }
+      },
+
+   '-playlist_index' =>
+      {
+	 help     => 'show the index of the current song in the playlist',
+	 command  => sub { report 'playlist index', pick_field 3, send_command "$player playlist index ?"; }
+      },
+
+   '-playlist_length' =>
+      {
+	 help     => 'show the length of the current playlist',
+	 command  => sub { report 'playlist length', pick_field 3, send_command "$player playlist tracks ?"; }
+      },
+
+   '-player_model' =>
+      {
+	 help     => 'show the model of the player',
 	 command  => sub { report 'player model',  pick_field 3, send_command "player model $player ?"; }
       },
 
    '-players' =>
       {
-	 help    => 'list all configured players, one per line',
+	 help    => 'show all configured players',
 	 command => sub { print map { "$_\n" } @player; }
       },
 
    '-playing' =>
       {
-	 help    => 'report the name of the currently-playing file/url',
+	 help    => 'show the currently-playing track',
 	 command => sub { report 'playing', pick_field 2, send_command "$player current_title ?"; }
       },
 
    '-power' =>
       {
-	 help    => 'report whether power is on or off for this player',
+	 help    => 'show whether power is on or off',
 	 command => sub { report 'power', pick_field 2, send_command "$player power ?"; }
       },
 
    '-previous' =>
       {
-	 help    => 'go back to the previous track on the playlist',
+	 help    => 'jump to the previous track on the playlist',
 	 command =>
 	    sub
 	    {
@@ -639,35 +692,35 @@ sub command
 	    }
       },
 
-   '-printlinks' =>
+   '-print_links' =>
       {
-	 help    => 'output a list of commands suitable for creating pseudonyms for the squeezy command',
+	 help    => 'show a list of commands suitable for creating player pseudonyms for the squeezy command',
 	 command =>
 	    sub
 	    {
-	       my $squeeze = $0; # not $my_name
-	       my $dir     = $squeeze;
+	       my $squeezy = $0; # not $my_name
+	       my $dir     = $squeezy;
 		  $dir     =~ s:/[^/]+$::;
 	       foreach ( map { lc } @player )
-		  { print "ln -vf \"$squeeze\" \"$dir/$_\"\n"; }
+		  { print "ln -vf \"$squeezy\" \"$dir/$_\"\n"; }
 	    }
       },
 
    '-quieter' =>
       {
-	 help    => "decrease the volume slightly (by $little/100)",
+	 help    => "decrease the volume slightly (by $little%)",
 	 command => sub { command -volume, "-$little"; }
       },
 
    '-Quieter' =>
       {
-	 help    => "reduce the volume significantly (by $lot/100)",
+	 help    => "reduce the volume significantly (by $lot%)",
 	 command => sub { command -volume, "-$lot"; }
       },
 
    '-shortcuts' =>
       {
-	 help     => 'show a list on standard output of the configured shortcuts, one per line',
+	 help     => 'show the configured shortcuts',
 	 command  =>
 	    sub
 	    {
@@ -688,25 +741,31 @@ sub command
 	    }
       },
 
+   '-silent' =>
+      {
+	 help     => 'redirect standard output to \'/dev/null\'',
+	 command  => sub { open STDOUT, '>', '/dev/null'; }
+      },
+
    '-sleep' =>
       {
-	 help     => 'make the player sleep in <arg> minutes',
+	 help     => 'make the player sleep in <arg> minutes (use \'0\' or \'-sleep_clear\' to cancel sleep)',
 	 do_shift => 1,
 	 command  =>
 	    sub
 	    {
 	       my $time = shift;
 	       if ( ! ( $time =~ m/^[0-9]{1,}$/ ) )
-		  { die "squeeze -sleep: invalid argument ($time)\n"; }
+		  { die "squeezy -sleep: invalid argument ($time)\n"; }
 	       $time = 60 * $time;
 	       send_command "$player sleep $time";
 	       command -sleeping;
 	    }
       },
 
-   '-sleepclear' =>
+   '-sleep_clear' =>
       {
-	 help     => 'make the player not go to sleep',
+	 help     => 'cancel sleep',
 	 command  =>
 	    sub
 	    {
@@ -717,13 +776,13 @@ sub command
 
    '-sleeping' =>
       {
-	 help     => 'report on a players sleep status',
+	 help     => 'report on a player\'s sleep status (indicated in seconds)',
 	 command  => sub { report 'sleep', pick_field 2, send_command "$player sleep ?"; }
       },
 
    '-sync' =>
       {
-	 help     => 'make player synchronise with <arg> (another player; unreliable)',
+	 help     => 'synchronise player with <arg> (another player; unreliable)',
 	 do_shift => 1,
 	 command  =>
 	    sub
@@ -736,25 +795,33 @@ sub command
 
    '-syncgroups' =>
       {
-	 help     => 'report synchronisation group for this player',
+	 help     => 'show synchronisation groups',
 	 command  => sub { report 'syncgroups', pick_field 2, send_command 'syncgroups ?'; }
       },
 
    '-tick' =>
       {
-	 help    => "make -listen request all players' playback time every second",
+	 help    => 'make -listen request all players\' playback time every second',
 	 command => sub { $tick = 1; }
       },
 
    '-time' =>
       {
-	 help    => 'report time in currently-playing track/url',
-	 command => sub { report 'time', pick_field 2, send_command "$player time ?"; }
+	 help     => 'jump to an absolute or relative position in the current track (measured in seconds; eg. 10, +30, -30)',
+	 do_shift => 1,
+	 command  =>
+	    sub
+	    {
+	       my $time = shift;
+	       if ( ! ( $time =~ m/^[+-]?[0-9]{1,}$/ ) )
+		  { die "squeezy -time: invalid time specifier ($time)\n"; }
+	       report 'time', pick_field 2, send_command "$player time $time";
+	    }
       },
 
    '-unsync' =>
       {
-	 help    => 'unsynchronise player (from other players; unreliable)',
+	 help    => 'unsynchronise player (unreliable)',
 	 command =>
 	    sub
 	    {
@@ -766,7 +833,7 @@ sub command
 
    '-volume' =>
       {
-	 help    => "set the player's volume (absolute or relative)",
+	 help    => "set the player's volume (absolute or relative, use \'?\' to query the current volume)",
 	 do_shift => 1,
 	 command  =>
 	    sub
@@ -787,8 +854,9 @@ sub command
 );
 
 #
-# add commands to select each player; for example, for a player 'Kitchen' this
+# add options to select each player; for example, for a player 'Kitchen' this
 # will add options:
+
 #   -Kitchen
 #   -kitchen
 #   -k
@@ -803,19 +871,20 @@ foreach ( @player )
    my $lc = lc $p;            # same, but lower case
    my $fc = substr($lc,0,1);  # just the first character
 
-   foreach ( -"$_", "-$lc", "-$fc" )
+   foreach ( $_, $lc, $fc )
    {
       if ( ! $command{$_} )
       {
-	 $command{$_} = { is_player => 1,
-			  help      => "select player $p",
-			  command   => sub { $group  = undef; $player = $p; }, };
+	 $command{"-$_"} = { is_player => 1,
+			     help      => "select player $p (automatically added option)",
+			     command   => sub { $group  = undef; $player = $p; print "$p selected\n"; }, };
       }
    }
 }
 
 #
-# add a command to directly play each shortcut
+# add a command to directly play each shortcut; again, only if it doesn't
+# overwrite an existing command
 #
 
 foreach ( keys %shortcut )
@@ -825,22 +894,26 @@ foreach ( keys %shortcut )
       my $sc = $_;
       $command{-$sc} =
 	 {
-	    help    => "play shortcut $sc ($shortcut{$sc})",
+	    help    => "play shortcut $sc ($shortcut{$sc}, automatically added option)",
 	    command => sub { command -play, $shortcut{$sc}; }
 	 };
    }
 }
 
 #
-# some abbreviated/alternative names
+# some abbreviated/alternative option names
 #
 
-$command{'-'}           = $command{-quieter} if ! $command{'-'};
-$command{'--'}          = $command{-Quieter} if ! $command{'--'};
-$command{'+'}           = $command{-louder}  if ! $command{'+'};
-$command{'++'}          = $command{-Louder}  if ! $command{'++'};
-$command{-currenttitle} = $command{-playing} if ! $command{-currenttitle};
-$command{-title}        = $command{-playing} if ! $command{-title};
+$command{'-'}              = $command{-quieter}          if ! $command{'-'};
+$command{'--'}             = $command{-Quieter}          if ! $command{'--'};
+$command{'+'}              = $command{-louder}           if ! $command{'+'};
+$command{'++'}             = $command{-Louder}           if ! $command{'++'};
+$command{-currenttitle}    = $command{-playing}          if ! $command{-currenttitle};
+$command{-playlist_remove} = $command{-playlist_delete}  if ! $command{-playlist_remove};
+$command{-title}           = $command{-playing}          if ! $command{-title};
+$command{-prev}            = $command{-previous}         if ! $command{-prev};
+$command{-goto}            = $command{-jump}             if ! $command{-goto};
+$command{'--help'}         = $command{-help}             if ! $command{'--help'};
 
 #
 # if the name of this "executable" is also the name of a player, then select
@@ -851,7 +924,7 @@ $command{-title}        = $command{-playing} if ! $command{-title};
 #   ln -v /usr/local/bin/squeezy /usr/local/bin/kitchen
 #
 # this allows you to say things like "kitchen -quieter"; see also the
-# -printlinks option
+# -print_links option
 #
 
 if ( $command{-$my_name} && $command{-$my_name}{is_player} )
@@ -876,9 +949,9 @@ while ( 0 <= $#ARGV )
       {
 	 my $argument = $ARGV[0];
 	 if ( ! defined $argument )
-	    { die "squeezy $arg: no argument\n"; }
+	    { die "squeezy $arg: no argument where argument required\n"; }
 	 if ( $command{$argument} )
-	    { die "squeezy $arg: invalid argument ($argument, which itself looks like an argument)\n"; }
+	    { die "squeezy $arg: invalid argument ($argument, which rather looks like an option)\n"; }
       }
 
       #
@@ -896,10 +969,6 @@ while ( 0 <= $#ARGV )
 
       next;
    }
-
-   #
-   # oops!
-   #
 
    die "squeezy error: unknown argument ($arg)\n";
 }

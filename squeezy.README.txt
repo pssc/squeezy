@@ -7,24 +7,29 @@ License:
    MIT license
    http://opensource.org/licenses/mit-license.php
 
+Project home:
+   http://code.google.com/p/squeezy/
+
 Introduction:
    squeezy is a command-line wrapper around squeezeserver's telnet/CLI
-   interface.  It can be used from the command line in scripts or from
+   interface.  It can be used from the command line, in scripts or from
    cron.
 
 Examples:
    squeezy -on
-   squeezy -sleep 60
-   squeezy -play some_file
-   squeezy -play some_url
-   squeezy -play .         # play the songs in the current directory
+   squeezy -off
+   squeezy -playlist
+   squeezy -jump 2         # play the second song on the playlist
+   squeezy -play .         # play all songs in the current directory
+   squeezy -play <SOME_FILE>
+   squeezy -play <SOME_URL>
    squeezy -next
    squeezy -previous
+   squeezy -sleep 60
    squeezy -kitchen -volume 14
    squeezy -kitchen -volume +5
-   squeezy -bedroom -sleep 40
-   squeezy -kitchen -some_shortcut
-   squeezy -button some_button
+   squeezy -kitchen -<SOME_SHORTCUT>
+   squeezy -button <SOME_BUTTON>
    squeezy -pause
    ... etc
 
@@ -39,7 +44,8 @@ Why?
 
    - you're a geek, and you get things done faster at the keyboard
 
-   - it's scriptable
+   - it's scriptable, and completion scripts are provided for
+     interactive use (bash and zsh completion)
 
    - squeezy integrates well with desktop menuing systems or with cron;
      here are some cron examples:
@@ -130,7 +136,7 @@ Usage:
    try "squeezy -help"; "squeezy -otions" might be helpful too
 
 Tips:
-   -  try "squeezy -printlinks"; this outputs a list of commands to
+   -  try "squeezy -print_links"; this outputs a list of commands to
       install an alias for squeezy for each of your players; for example,
       for me its output is:
 
