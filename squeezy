@@ -57,10 +57,10 @@ my $server     = 'localhost';
 my $port       =  9090;
 my $username   =  undef;
 my $password   =  undef;
+my $group      =  undef;
 my @group;
 my %shortcut;
 my $default    =  undef;
-my $group      =  undef;
 my $silent     =  undef;
 my $little     = '3';
 my $lot        = '10';
@@ -181,6 +181,10 @@ sub terminal_cols
    return (map { chomp; $_ } `tput co`)[0];
 }
 
+#
+# server socket commands
+#
+
 my $socket = undef;
 
 sub send_command
@@ -208,7 +212,7 @@ sub send_command
       # an authentication failure
       print $socket "player count ?\n";
       if ( ! $socket->connected() || ! <$socket> )
-	 { die "squeezy error: authentication failed (username='$username')\n"; }
+	 { die "squeezy error: authentication failed (username='$username', password='$password')\n"; }
    }
 
    if ( ! $socket->connected() )
@@ -233,7 +237,7 @@ sub listen_output
    # this is just an output hook, it's somewhere to put post-processing
    # triggers for the -listen output
    #
-   # if we see a "new song", then request full status from the player
+   # if we see a "new song", then request full status for that player
    #
    if ( $_[1] eq 'playlist' && $_[2] eq 'newsong' )
    {
@@ -721,11 +725,8 @@ sub command
    '-shortcuts' =>
       {
 	 help     => 'show the configured shortcuts',
-	 command  =>
-	    sub
-	    {
-	       foreach ( keys %shortcut )
-		  { print sprintf "%-8s %s\n", $_, $shortcut{$_}; }
+	 command  => sub { foreach ( keys %shortcut )
+		              { print sprintf "%-8s %s\n", $_, $shortcut{$_}; }
 	    }
       },
 
@@ -733,12 +734,8 @@ sub command
       {
 	 help    => "show a message on the player's display (for six seconds)",
 	 do_shift => 1,
-	 command  =>
-	    sub
-	    {
-	       my $show = urlencode shift;
-	       send_command "$player show font:huge duration:6 centered:1 line2:$show";
-	    }
+	 command  => sub { my $show = urlencode shift;
+	                   send_command "$player show font:huge duration:6 centered:1 line2:$show"; }
       },
 
    '-silent' =>
@@ -777,7 +774,13 @@ sub command
    '-sleeping' =>
       {
 	 help     => 'report on a player\'s sleep status (indicated in seconds)',
-	 command  => sub { report 'sleep', pick_field 2, send_command "$player sleep ?"; }
+	 command  =>
+	    sub
+	    {
+	       my $time = pick_field 2, send_command "$player sleep ?";
+	       my @time = split('\.', $time);
+	       report 'sleep', $time[0];
+	    }
       },
 
    '-sync' =>
