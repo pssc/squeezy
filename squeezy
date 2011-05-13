@@ -44,8 +44,8 @@ my $conf_locs = qq( ./$conf_base
 my @conf_file = map { $_ && -r $_ ? $_ : () } split /\s+/, $conf_locs;
 my $conf_file = $conf_file[0];
 
-die "squeezy error: could not find configuration file:\n", map { "\t$_\n" } @conf_file
-   unless $conf_file;
+# die "squeezy error: could not find configuration file:\n", map { "\t$_\n" } @conf_file
+#    unless $conf_file;
 
 #
 # some globals
@@ -67,84 +67,9 @@ my $lot        = '10';
 my $prefixpre  = '';
 my $prefixpos  = '';
 my $tick       = undef;
+my $player     = undef;
 my %command;
-
-#
-# read configuration file
-#
-
-open CONFIG, "<$conf_file"
-   or die "squeezy: open of configuration file failed ($conf_file)\n";
-
-foreach ( <CONFIG> )
-{
-   s/#.*//;       # strip comments
-   s/^\s*//;      # strip leading whitespace
-   s/\s*$//;      # strip trailing whitespace
-   $_ || do next; # skip empty lines
-
-   my @arg = split /\s+/;
-
-   $arg[0] eq 'server'   && $#arg == 1 && do { $server   = $arg[1]; next; };
-   $arg[0] eq 'port'     && $#arg == 1 && do { $port     = $arg[1]; next; };
-   $arg[0] eq 'username' && $#arg == 1 && do { $username = $arg[1]; next; };
-   $arg[0] eq 'password' && $#arg == 1 && do { $password = $arg[1]; next; };
-
-   $arg[0] eq 'player'
-      && do
-      {  if ( $#arg == 1 ) { push @{$group[0]},       $arg[1]; next; }
-	 if ( $#arg == 2 ) { push @{$group[$arg[1]]}, $arg[2]; next; } };
-
-   $arg[0] eq 'shortcut' && $#arg == 2
-      && do
-      {  $default = $arg[2] unless $default;
-	 $shortcut{$arg[1]} = $arg[2];
-	 next; };
-
-   $arg[0] eq 'small_volume' && $#arg == 1 && $arg[1] =~ m/^[0-9]+$/ && do { $little = $arg[1]; next; };
-   $arg[0] eq 'large_volume' && $#arg == 1 && $arg[1] =~ m/^[0-9]+$/ && do { $lot    = $arg[1]; next; };
-
-   $arg[0] eq 'prefixpre'
-      && do
-      {  if ( $#arg == 0 ) { next; }
-	 if ( $#arg == 1 ) { $prefixpre = $arg[1]; next; } };
-
-   $arg[0] eq 'prefixpos'
-      && do
-      {  if ( $#arg == 0 ) { next; }
-	 if ( $#arg == 1 ) { $prefixpos = $arg[1]; next; } };
-
-   die "error in $conf_file: $_\n"
-}
-
-close CONFIG;
-
-if ( $username && ! $password )
-   { die "squeezy configuration error: username is set ($username) but password is unset\n"; }
-
-my $player = undef;
 my @player;
-
-while ( ! $player )
-{
-   @player = map { @$_ } @group;
-   $player = $player[0];
-   if ( !$player )
-   {
-      print STDERR "squeezy warning: no players specified\n";
-      print STDERR "                 you likely won't be able to do much without them\n";
-      $group[0][0] = 'NO_PLAYER_SPECIFIED_IN_CONF_FILE____THIS_WILL_NOT_WORK';
-   }
-}
-
-push @group, [ @player ];
-
-#
-# strip any trailing '/'s from $prefixpre and $prefixpos
-#
-
-if ( $prefixpre ) { $prefixpre =~ s:/+$::; }
-if ( $prefixpos ) { $prefixpos =~ s:/+$::; }
 
 #
 # utilities
@@ -227,6 +152,106 @@ sub send_command
    chomp $response;
    return $response;
 }
+
+#
+# read configuration file
+#
+
+if ( -r $conf_file )
+{
+   open CONFIG, "<$conf_file"
+      or die "squeezy: open of configuration file failed ($conf_file)\n";
+
+   foreach ( <CONFIG> )
+   {
+      s/#.*//;       # strip comments
+      s/^\s*//;      # strip leading whitespace
+      s/\s*$//;      # strip trailing whitespace
+      $_ || do next; # skip empty lines
+
+      my @arg = split /\s+/;
+
+      $arg[0] eq 'server'   && $#arg == 1 && do { $server   = $arg[1]; next; };
+      $arg[0] eq 'port'     && $#arg == 1 && do { $port     = $arg[1]; next; };
+      $arg[0] eq 'username' && $#arg == 1 && do { $username = $arg[1]; next; };
+      $arg[0] eq 'password' && $#arg == 1 && do { $password = $arg[1]; next; };
+
+      $arg[0] eq 'player'
+	 && do
+	 {  if ( $#arg == 1 ) { push @{$group[0]},       $arg[1]; next; }
+	    if ( $#arg == 2 ) { push @{$group[$arg[1]]}, $arg[2]; next; } };
+
+      $arg[0] eq 'shortcut' && $#arg == 2
+	 && do
+	 {  $default = $arg[2] unless $default;
+	    $shortcut{$arg[1]} = $arg[2];
+	    next; };
+
+      $arg[0] eq 'small_volume' && $#arg == 1 && $arg[1] =~ m/^[0-9]+$/ && do { $little = $arg[1]; next; };
+      $arg[0] eq 'large_volume' && $#arg == 1 && $arg[1] =~ m/^[0-9]+$/ && do { $lot    = $arg[1]; next; };
+
+      $arg[0] eq 'prefixpre'
+	 && do
+	 {  if ( $#arg == 0 ) { next; }
+	    if ( $#arg == 1 ) { $prefixpre = $arg[1]; next; } };
+
+      $arg[0] eq 'prefixpos'
+	 && do
+	 {  if ( $#arg == 0 ) { next; }
+	    if ( $#arg == 1 ) { $prefixpos = $arg[1]; next; } };
+
+      die "error in $conf_file: $_\n"
+   }
+
+   close CONFIG;
+}
+else
+{
+   # no configuration file; try to ask squeezeserver on localhost:9090 to ask
+   # it for the names of players
+   my $count = pick_field 2, send_command 'player count ?';
+   if ( $count )
+   {
+      for (my $i=0; $i<$count; $i+=1)
+      {
+	 my $pn = pick_field 3, send_command "player name $i ?"; 
+	 if ( $pn && $pn ne '?' )
+	    { push @{$group[0]}, $pn }
+	 else
+	 {  my $pid = pick_field 3, send_command "player id $i ?"; 
+	    if ( $pid && $pid ne '?' )
+	       { push @{$group[0]}, $pid } }
+      }
+      if ( $group[0][0] )
+      {
+	 print 'players: ', join(' ', @{$group[0]}), "\n";
+      }
+   }
+}
+
+if ( $username && ! $password )
+   { die "squeezy configuration error: username is set ($username) but password is unset\n"; }
+
+while ( ! $player )
+{
+   @player = map { @$_ } @group;
+   $player = $player[0];
+   if ( !$player )
+   {
+      print STDERR "squeezy warning: no players specified\n";
+      print STDERR "                 you likely won't be able to do much without them\n";
+      $group[0][0] = 'NO_PLAYER_SPECIFIED_IN_CONF_FILE____THIS_WILL_NOT_WORK';
+   }
+}
+
+push @group, [ @player ];
+
+#
+# strip any trailing '/'s from $prefixpre and $prefixpos
+#
+
+if ( $prefixpre ) { $prefixpre =~ s:/+$::; }
+if ( $prefixpos ) { $prefixpos =~ s:/+$::; }
 
 #
 # listen output wrapper functions
