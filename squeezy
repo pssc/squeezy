@@ -1,10 +1,11 @@
 #!/usr/bin/env perl
 #
 # Version:
-#    0.12
+#    0.18
 #
 # Copyright:
 #    Stephen Blott (smblott@gmail.com)
+#    Phillip Camp (phillip<dot>camp@gmail.com)
 # 
 # License:
 #    MIT license
@@ -27,7 +28,7 @@ use strict;
 use IO::Socket;
 use IO::Select;
 use Cwd 'realpath';
-# use Data::Dumper;
+#use Data::Dumper;
 
 #
 # find a configuration file
@@ -68,8 +69,14 @@ my $prefixpre  = '';
 my $prefixpos  = '';
 my $tick       = undef;
 my $player     = undef;
+my $def_player     = undef;
+my $autodiscover = undef;
 my %command;
 my @player;
+my @servers = ();
+my @udp_ports = (3483);
+my $DISCOVERY_PERIOD = 1;   # discovery period
+my $timeout = 3;  
 
 #
 # utilities
@@ -96,7 +103,7 @@ sub report
 {
    my $mess = shift;
    my $value = shift;
-   print join(' ', ($player, $mess, &urldecode($value))), "\n";
+   print join(' ', $player, $mess, &urldecode($value)), "\n";
    return $value;
 }
 
@@ -110,8 +117,8 @@ sub terminal_cols
 # server socket commands
 #
 
-my $socket = undef;
 
+my $socket = undef;
 sub send_command
 {
    # this a syncronous command/response interaction, one line is sent to the
@@ -120,6 +127,7 @@ sub send_command
    {
       $socket  = IO::Socket::INET -> new ( PeerAddr => $server,
 		                           PeerPort => $port,
+		                           Timeout  => $timeout,
 		                           Proto    => 'tcp' )
 	         or
 	         die "squeezy error: could not connect to $server port $port\n";
@@ -144,7 +152,13 @@ sub send_command
       { die "squeezy error: server dropped socket connection\n"; }
 
    print $socket join(" ", @_), "\n";
-   my $response = <$socket>;
+
+   ## FIXME some commands produce no responce... so timoeut needed
+   my $response ="";
+   my $wait = IO::Select->new($socket);
+   if (my ($found) = $wait->can_read($timeout)) {
+         $response = <$socket>;
+   }
 
    if ( ! $socket->connected() )
       { die "squeezy error: server dropped socket connection\n"; }
@@ -178,8 +192,9 @@ if ( -r $conf_file )
 
       $arg[0] eq 'player'
 	 && do
-	 {  if ( $#arg == 1 ) { push @{$group[0]},       $arg[1]; next; }
-	    if ( $#arg == 2 ) { push @{$group[$arg[1]]}, $arg[2]; next; } };
+	 {  if ( $#arg == 1 ) { push @{$group[0]},       { name=>$arg[1]}; next; }
+	    if ( $#arg == 2 ) { push @{$group[$arg[1]]}, { name=>$arg[2]}; next; } 
+	    if ( $#arg == 3 ) { push @{$group[$arg[1]]}, { name=>$arg[2], server=>{HOST=>$arg[3]}}; next; } };
 
       $arg[0] eq 'shortcut' && $#arg == 2
 	 && do
@@ -200,50 +215,121 @@ if ( -r $conf_file )
 	 {  if ( $#arg == 0 ) { next; }
 	    if ( $#arg == 1 ) { $prefixpos = $arg[1]; next; } };
 
+      $arg[0] eq 'autodiscover'
+         && do
+         { if ( $#arg == 0 ) { next; }
+           if ( $#arg == 1 ) { $autodiscover = (lc($arg[1]) eq 'yes') ? 1 : 0; next; } };
+
+      $arg[0] eq 'discoverperiod'
+         && do
+         { if ( $#arg == 0 ) { next; }
+           if ( $#arg == 1 ) { $DISCOVERY_PERIOD = $arg[1]; next; } };
+
       die "error in $conf_file: $_\n"
    }
 
    close CONFIG;
 }
-else
-{
-   # no configuration file; try to ask squeezeserver on localhost:9090 to ask
-   # it for the names of players
-   my $count = pick_field 2, send_command 'player count ?';
-   if ( $count )
-   {
-      for (my $i=0; $i<$count; $i+=1)
-      {
-	 my $pn = pick_field 3, send_command "player name $i ?"; 
-	 if ( $pn && $pn ne '?' )
-	    { push @{$group[0]}, $pn }
-	 else
-	 {  my $pid = pick_field 3, send_command "player id $i ?"; 
-	    if ( $pid && $pid ne '?' )
-	       { push @{$group[0]}, $pid } }
+
+if ( ! -r $conf_file or $autodiscover ) {
+   foreach my $port (@udp_ports) {
+      socket(my $socket, AF_INET, SOCK_DGRAM, getprotobyname('udp'));
+      setsockopt($socket, SOL_SOCKET, SO_BROADCAST, 1);
+      my $destpaddr = sockaddr_in($port, INADDR_BROADCAST);
+      send($socket, "eIPAD\0NAME\0JSON\0VERS\0UUID\0", 0, $destpaddr);
+      my $wait = IO::Select->new($socket);
+
+      while (my ($found) = $wait->can_read($DISCOVERY_PERIOD)) {
+         my $clientpaddr = recv($socket, my $msg, 1600, 0);
+         # chop of leading character
+         $msg = substr($msg, 1);
+
+         my $len = length($msg);
+         my ($tag, $len2, $val);
+
+         my $bag = {};
+
+         while ($len > 0) {
+                $tag  = substr($msg, 0, 4);
+                $len2 = unpack("xxxxC", $msg);
+                $val  = $len2 ? substr($msg, 5, $len2) : undef;
+
+                #print(" TLV: $tag len: $len2, $val");
+
+                $bag->{$tag} = $val;
+
+                $msg = substr($msg, $len2 + 5);
+                $len = $len - $len2 - 5;
+         }
+
+         # get server's IP address
+         if ($clientpaddr) {
+                my ($portno, $ipaddr) = sockaddr_in($clientpaddr);
+                $bag->{IP} = inet_ntoa($ipaddr);
+                $bag->{HOST} = gethostbyaddr($ipaddr, AF_INET);
+		push @servers, $bag
+         }
       }
-      if ( $group[0][0] )
-      {
-	 print 'players: ', join(' ', @{$group[0]}), "\n";
-      }
+      close $socket;
+   }
+
+   if (scalar(@servers) > 1 ) {
+       print 'servers: ', join(', ', map { $_->{NAME}.":".($_->{HOST} || "uknown").":".($_->{IP} || "unkown")  } @servers), "\n";
+   }
+
+   # ask squeezeservers on 9090 
+   # for the names of players
+   foreach my $host (@servers) {
+       $server = $host->{IP} || $host->{HOST};
+       my $count = pick_field 2, send_command 'player count ?';
+       if ( $count )
+       {
+           for (my $i=0; $i<$count; $i+=1)
+           {
+	       my $pn = pick_field 3, send_command "player name $i ?"; 
+	       if ( $pn && $pn ne '?' ) { push @{$group[0]}, { name=>$pn , server=>$host } 
+               } else {  
+                  my $pid = pick_field 3, send_command "player id $i ?"; 
+	          if ( $pid && $pid ne '?' )
+	             { push @{$group[0]}, { name=>$pid, server=>$host} } 
+               }
+           }
+           if ( $group[0][0] )
+           {
+	       my $name = $host->{NAME} || $host->{HOST} || $host->{IP};
+               if (scalar(@servers) eq 1 ) {
+		  $name = '';
+	       } else {
+                  $name = "(".$name.")";
+	       }
+	       print 'players: ', join(', ', map { $_->{name}.$name } @{$group[0]}), "\n";
+           }
+       }
+       $host->{SOCKET} = $socket;
+       $socket = undef;
    }
 }
+
+
 
 if ( $username && ! $password )
    { die "squeezy configuration error: username is set ($username) but password is unset\n"; }
 
-while ( ! $player )
+
+# find a default player
+while ( ! $def_player )
 {
    @player = map { @$_ } @group;
-   $player = $player[0];
-   if ( !$player )
+   $def_player = $player[0];
+   if ( !$def_player )
    {
-      print STDERR "squeezy warning: no players specified\n";
+      print STDERR "squeezy warning: no players specified or detected\n";
       print STDERR "                 you likely won't be able to do much without them\n";
-      $group[0][0] = 'NO_PLAYER_SPECIFIED_IN_CONF_FILE____THIS_WILL_NOT_WORK';
+      $group[0][0] = 'NO_PLAYERS_THIS_WILL_NOT_WORK';
    }
 }
 
+# push a group containing all players
 push @group, [ @player ];
 
 #
@@ -379,7 +465,7 @@ sub command
       {
 	 help     => 'send a button key command to the player (see the server\'s "Default.map" file)',
 	 do_shift => 1,
-	 command  => sub { send_command $player, 'button', $_[0]; }
+	 command  => sub { send_command urlencode($player), 'button', $_[0]; }
       },
 
    '-default' =>
@@ -405,7 +491,7 @@ sub command
    '-elapsed' =>
       {
 	 help    => 'show the elapsed time in currently-playing track/url',
-	 command => sub { report 'time', pick_field 2, send_command "$player time ?"; }
+	 command => sub { report 'time', pick_field 2, send_command urlencode($player)." time ?"; }
       },
 
    '-exit_if_playing' =>
@@ -450,7 +536,7 @@ sub command
 	       {
 		  print "group $i:\n";
 		  foreach my $g ( @{$group[$i]} )
-		     { print "   $g\n"; }
+		     { print "   ".$g->{name}."\n"; }
 	       }
 	    }
       },
@@ -489,7 +575,7 @@ sub command
 		  { die "squeezy -jump: invalid jump specifier ($target)\n"; }
 	       my $count = command -playlist_length;
 	       my $index = command -playlist_index;
-	       report 'new track', pick_field 3, send_command "$player playlist index $target";
+	       report 'new track', pick_field 3, send_command urlencode($player)." playlist index $target";
 	       command -playing;
 	    }
       },
@@ -519,7 +605,7 @@ sub command
 	    sub
 	    {
 	       command -power;
-	       report 'mode', pick_field 2, send_command "$player mode ?";
+	       report 'mode', pick_field 2, send_command urlencode($player)." mode ?";
 	    }
       },
 
@@ -539,7 +625,7 @@ sub command
 	 command =>
 	    sub
 	    {
-	       send_command "$player playlist index +1";
+	       send_command urlencode($player)." playlist index +1";
 	       command -playing;
 	    }
       },
@@ -550,8 +636,8 @@ sub command
 	 command =>
 	    sub
 	    {
-	       send_command "$player power 1";
-	       send_command "$player pause 0";
+	       send_command urlencode($player)." power 1";
+	       send_command urlencode($player)." pause 0";
 	       command -power;
 	       command -mode;
 	       command -playing;
@@ -564,8 +650,8 @@ sub command
 	 command =>
 	    sub
 	    {
-	       send_command "$player power 0";;
-	       command -power
+	       send_command urlencode($player)." power 0";
+	       command -power;
 	    }
       },
 
@@ -581,7 +667,7 @@ sub command
 	 command =>
 	    sub
 	    {
-	       send_command "$player pause";
+	       send_command urlencode($player)." pause";
 	       command -mode;
 	    }
       },
@@ -602,7 +688,7 @@ sub command
 		  $play = "$prefixpos$play";
 	       }
 	       $play = urlencode $play;
-	       send_command "$player playlist $oper $play";
+	       send_command urlencode($player)." playlist $oper $play";
 	       command -playing;
 	    }
       },
@@ -616,13 +702,13 @@ sub command
    '-player_id' =>
       {
 	 help     => 'show the id of the player',
-	 command  => sub { report 'player id',  pick_field 3, send_command "player id $player ?"; }
+	 command  => sub { report 'player id',  pick_field 3, send_command "player id ".urlencode($player)." ?"; }
       },
 
    '-player_ip' =>
       {
 	 help     => 'show the ip address of the player',
-	 command  => sub { report 'player IP',  pick_field 3, send_command "player ip $player ?"; }
+	 command  => sub { report 'player IP',  pick_field 3, send_command "player ip ".urlencode($player)." ?"; }
       },
 
    '-playlist' =>
@@ -636,9 +722,9 @@ sub command
 	       my $cols  = terminal_cols();
 	       for (my $i=0; $i<$count; $i+= 1)
 	       {
-		  my $album  = pick_field 4, send_command "$player playlist album  $i ?";
-		  my $artist = pick_field 4, send_command "$player playlist artist $i ?";
-		  my $title  = pick_field 4, send_command "$player playlist title  $i ?";
+		  my $album  = pick_field 4, send_command urlencode($player)." playlist album  $i ?";
+		  my $artist = pick_field 4, send_command urlencode($player)." playlist artist $i ?";
+		  my $title  = pick_field 4, send_command  urlencode($player)." playlist title  $i ?";
 		  if ( $cols )
 		  {
 		     my $left  = sprintf "%s %-3d %s", $i == $index ? '>' : ' ', $i, $title;
@@ -669,7 +755,7 @@ sub command
 	       my $count = command -playlist_length;
 	       if ( $count <= $target )
 		  { die "squeezy -playlist_delete: invalid playlist specifier, too big ($target)\n"; }
-	       report 'playlist delete', pick_field 3, send_command "$player playlist delete $target";
+	       report 'playlist delete', pick_field 3, send_command  urlencode($player)." playlist delete $target";
 	       command -playing;
 	    }
       },
@@ -677,19 +763,19 @@ sub command
    '-playlist_index' =>
       {
 	 help     => 'show the index of the current song in the playlist',
-	 command  => sub { report 'playlist index', pick_field 3, send_command "$player playlist index ?"; }
+	 command  => sub { report 'playlist index', pick_field 3, send_command  urlencode($player)." playlist index ?"; }
       },
 
    '-playlist_length' =>
       {
 	 help     => 'show the length of the current playlist',
-	 command  => sub { report 'playlist length', pick_field 3, send_command "$player playlist tracks ?"; }
+	 command  => sub { report 'playlist length', pick_field 3, send_command  urlencode($player)." playlist tracks ?"; }
       },
 
    '-player_model' =>
       {
 	 help     => 'show the model of the player',
-	 command  => sub { report 'player model',  pick_field 3, send_command "player model $player ?"; }
+	 command  => sub { report 'player model',  pick_field 3, send_command "player model ".urlencode($player)." ?"; }
       },
 
    '-players' =>
@@ -701,13 +787,13 @@ sub command
    '-playing' =>
       {
 	 help    => 'show the currently-playing track',
-	 command => sub { report 'playing', pick_field 2, send_command "$player current_title ?"; }
+	 command => sub { report 'playing', pick_field 2, send_command  urlencode($player)." current_title ?"; }
       },
 
    '-power' =>
       {
 	 help    => 'show whether power is on or off',
-	 command => sub { report 'power', pick_field 2, send_command "$player power ?"; }
+	 command => sub { report 'power', pick_field 2, send_command  urlencode($player)." power ?"; }
       },
 
    '-previous' =>
@@ -716,7 +802,7 @@ sub command
 	 command =>
 	    sub
 	    {
-	       send_command "$player playlist index -1";
+	       send_command urlencode($player)." playlist index -1";
 	       command -playing;
 	    }
       },
@@ -760,7 +846,7 @@ sub command
 	 help    => "show a message on the player's display (for six seconds)",
 	 do_shift => 1,
 	 command  => sub { my $show = urlencode shift;
-	                   send_command "$player show font:huge duration:6 centered:1 line2:$show"; }
+	                   send_command urlencode($player)." show font:huge duration:6 centered:1 line2:$show"; }
       },
 
    '-silent' =>
@@ -780,7 +866,7 @@ sub command
 	       if ( ! ( $time =~ m/^[0-9]{1,}$/ ) )
 		  { die "squeezy -sleep: invalid argument ($time)\n"; }
 	       $time = 60 * $time;
-	       send_command "$player sleep $time";
+	       send_command  urlencode($player)." sleep $time";
 	       command -sleeping;
 	    }
       },
@@ -791,7 +877,7 @@ sub command
 	 command  =>
 	    sub
 	    {
-	       send_command "$player sleep 0";
+	       send_command  urlencode($player)." sleep 0";
 	       command -sleeping;
 	    }
       },
@@ -802,7 +888,7 @@ sub command
 	 command  =>
 	    sub
 	    {
-	       my $time = pick_field 2, send_command "$player sleep ?";
+	       my $time = pick_field 2, send_command  urlencode($player)." sleep ?";
 	       my @time = split('\.', $time);
 	       report 'sleep', $time[0];
 	    }
@@ -816,8 +902,8 @@ sub command
 	    sub
 	    {
 	       my $arg = shift;
-	       send_command "$player sync $arg";
-	       report 'sync', pick_field 2, send_command "$player sync ?";
+	       send_command  urlencode($player)." sync ".urlencode($arg);
+	       report 'sync', pick_field 2, send_command  urlencode($player)." sync ?";
 	    }
       },
 
@@ -843,7 +929,7 @@ sub command
 	       my $time = shift;
 	       if ( ! ( $time =~ m/^[+-]?[0-9]{1,}$/ ) )
 		  { die "squeezy -time: invalid time specifier ($time)\n"; }
-	       report 'time', pick_field 2, send_command "$player time $time";
+	       report 'time', pick_field 2, send_command urlencode($player)." time $time";
 	    }
       },
 
@@ -853,9 +939,9 @@ sub command
 	 command =>
 	    sub
 	    {
-	       send_command "$player sync -";
+	       send_command urlencode($player)." sync -";
 	       command -syncgroups;
-	       report 'sync', pick_field 2, send_command "$player sync ?";
+	       report 'sync', pick_field 2, send_command urlencode($player)." sync ?";
 	    }
       },
 
@@ -873,9 +959,9 @@ sub command
 		     { die "squeezy -volume: invalid volume specifier ($vol)\n"; }
 		  if ( 100 < $vol || $vol < -100)
 		     { die "squeezy -volume: invalid volume specifier ($vol, should be min/max 100)\n"; }
-		  send_command "$player mixer volume $vol";
+		  send_command urnencode($player)." mixer volume $vol";
 	       }
-	       report 'volume', pick_field 3, send_command "$player mixer volume ?";
+	       report 'volume', pick_field 3, send_command urlencode($player)." mixer volume ?";
 	    }
       },
 
@@ -895,11 +981,13 @@ sub command
 
 foreach ( @player )
 {
-   my $p  =    $_;            # player name
+   my $p  = $_{name};               # player name
+   my $ns = $p;
+   my $ns =~ s/ /_/g; 	      # remove spaces
    my $lc = lc $p;            # same, but lower case
    my $fc = substr($lc,0,1);  # just the first character
 
-   foreach ( $_, $lc, $fc )
+   foreach ( $ns, $lc, $fc )
    {
       if ( ! $command{$_} )
       {
@@ -965,7 +1053,7 @@ if ( $command{-$my_name} && $command{-$my_name}{is_player} )
 while ( 0 <= $#ARGV )
 {
    my $arg  = shift @ARGV;
-   my @whom = defined $group ? @{$group[$group]} : ( $player );
+   my @whom = defined $group ? @{$group[$group]} : ( $def_player );
 
    if ( $command{$arg} )
    {
@@ -985,11 +1073,16 @@ while ( 0 <= $#ARGV )
       #
       # command processing
       #
-
       foreach my $p ( @whom )
       {
-	 $player = $p;
-	 command $arg, $ARGV[0];
+	 if ( exists $p->{name} ) {
+ 		$socket = $p->{SOCKET} || undef;
+ 		$player = $p->{name};
+                $server = $p->{server}{IP} || $p->{server}{HOST};
+	 	command $arg, $ARGV[0];
+	 } else {
+		 die "squeezy invalid player object $p\n";
+	 }
       }
       
       if ( $command{$arg}->{do_shift} )
