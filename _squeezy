@@ -1,0 +1,30 @@
+#compdef squeezy kitchen living bedroom nico chrissy
+
+#
+# this is the squeezy completion configuration file for zsh; it goes in the
+# right place for you -- the right place for me being
+# ~/.zsh_completion/_squeezy
+#
+# you will need to edit the list of commands above to match the pseudonyms you
+# have for squeezy, if any;  a minimal confguration would be just:
+#compdef squeezy
+#
+# to avoid having to fire up several processes (one of which being a big perl
+# process) this completer caches the available options in $cache (see below)
+#
+
+local squeezy=`whence -p squeezy`
+local cache="$HOME/.squeezy_zsh_completion_cache"
+
+[ -z "$squeezy" ] && return 1
+[ -x "$squeezy" ] || return 2
+
+if ! [ -r $cache -a -s $cache ] || [ "$squeezy" -nt $cache ]
+then
+   command squeezy -options | tr ' ' '\n' | grep '^-[a-zA-Z0-9]' > $cache
+fi
+
+[ -r $cache -a -s $cache ] || return 4
+
+_arguments `cat $cache`
+

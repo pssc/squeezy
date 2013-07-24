@@ -1,0 +1,95 @@
+configuration file:
+   /usr/home/blott/.squeezy.conf
+
+configuration file search locations:
+   ./squeezy.conf
+   /usr/home/blott/.squeezy.conf
+   /usr/home/blott/.config/squeezy/squeezy.conf
+   /usr/home/blott/.config/squeezy.conf
+   /usr/local/etc/squeezy.conf
+   /etc/squeezy.conf
+
+command-line options:
++                 : increase the volume slightly (by 4%)
+++                : increase the volume significantly (by 13%)
+-                 : decrease the volume slightly (by 4%)
+--                : reduce the volume significantly (by 13%)
+--help            : show this help message
+-Bedroom          : select player Bedroom (automatically added option)
+-Chrissy          : select player Chrissy (automatically added option)
+-Kitchen          : select player Kitchen (automatically added option)
+-Living           : select player Living (automatically added option)
+-Louder           : increase the volume significantly (by 13%)
+-Nico             : select player Nico (automatically added option)
+-Quieter          : reduce the volume significantly (by 13%)
+-add <arg>        : add the indicated file, directory (contents), playlist or url to the playlist
+-all              : apply subsequent commands to all players (eg. squeezy -all -off)
+-b                : select player Bedroom (automatically added option)
+-bedroom          : select player Bedroom (automatically added option)
+-button <arg>     : send a button key command to the player (see the server's "Default.map" file)
+-c                : select player Chrissy (automatically added option)
+-chrissy          : select player Chrissy (automatically added option)
+-currenttitle     : show the currently-playing track
+-default          : play the default shortcut (the first one in the configuration file, currently http://localhost:7654/dvb-last.mp3)
+-die_if_playing   : if this player is on and playing, then die immediately; exit code 1
+-dvb              : play shortcut dvb (http://localhost:7654/dvb-last.mp3, automatically added option)
+-elapsed          : show the elapsed time in currently-playing track/url
+-exit_if_playing  : if this player is on and playing, then exit immediately; exit code 0
+-exit_if_sleeping : if this player is on and is timing down to sleep, then exit immediately; exit code 0
+-goto <arg>       : jump to a track on the current playlist (relative or absolute, eg. 3, +2, -4)
+-group <arg>      : apply subsequent command to all players in this group (eg. squeezy -group 1)
+-groups           : show the configured player groups
+-help             : show this help message
+-jump <arg>       : jump to a track on the current playlist (relative or absolute, eg. 3, +2, -4)
+-k                : select player Kitchen (automatically added option)
+-kitchen          : select player Kitchen (automatically added option)
+-l                : select player Living (automatically added option)
+-last             : play shortcut last (http://localhost:7654/dvb-last.mp3, automatically added option)
+-listen           : listen to squeezeserver activity (on standard output, see also '-tick')
+-living           : select player Living (automatically added option)
+-louder           : increase the volume slightly (by 4%)
+-mode             : show the player's mode ("play", "stop" or "pause")
+-mute             : set volume to 0
+-n                : select player Nico (automatically added option)
+-next             : jump to the next track on the playlist
+-nico             : select player Nico (automatically added option)
+-off              : turn player off
+-on               : turn player on and start playing the current playlist/track
+-options          : list all options to standard output (useful for configuring shell completion)
+-pause            : toggle pause
+-play <arg>       : play the indicated file, directory (contents), playlist or url
+-player_count     : show the number of connected players
+-player_id        : show the id of the player
+-player_ip        : show the ip address of the player
+-player_model     : show the model of the player
+-players          : show all configured players
+-playing          : show the currently-playing track
+-playlist         : show the current playlist
+-playlist_delete <arg>: delete (or remove) an item from the current playlist (eg. '-playlist_delete 3')
+-playlist_index   : show the index of the current song in the playlist
+-playlist_length  : show the length of the current playlist
+-playlist_remove <arg>: delete (or remove) an item from the current playlist (eg. '-playlist_delete 3')
+-power            : show whether power is on or off
+-prev             : jump to the previous track on the playlist
+-previous         : jump to the previous track on the playlist
+-print_links      : show a list of commands suitable for creating player pseudonyms for the squeezy command
+-quieter          : decrease the volume slightly (by 4%)
+-r1               : play shortcut r1 (http://localhost:7654/dvb-r1.mp3, automatically added option)
+-r3               : play shortcut r3 (http://localhost:7654/dvb-r3.mp3, automatically added option)
+-r4               : play shortcut r4 (http://localhost:7654/dvb-r4.mp3, automatically added option)
+-r5               : play shortcut r5 (http://localhost:7654/dvb-r5.mp3, automatically added option)
+-r5x              : play shortcut r5x (http://localhost:7654/dvb-r5x.mp3, automatically added option)
+-shortcuts        : show the configured shortcuts
+-show <arg>       : show a message on the player's display (for six seconds)
+-silent           : redirect standard output to '/dev/null'
+-sleep <arg>      : make the player sleep in <arg> minutes (use '0' or '-sleep_clear' to cancel sleep)
+-sleep_clear      : cancel sleep
+-sleeping         : report on a player's sleep status (indicated in seconds)
+-sync <arg>       : synchronise player with <arg> (another player; unreliable)
+-syncgroups       : show synchronisation groups
+-tick             : make -listen request all players' playback time every second
+-time <arg>       : jump to an absolute or relative position in the current track (measured in seconds; eg. 10, +30, -30)
+-title            : show the currently-playing track
+-unsync           : unsynchronise player (unreliable)
+-volume <arg>     : set the player's volume (absolute or relative, use '?' to query the current volume)
+-ws               : play shortcut ws (http://localhost:7654/dvb-ws.mp3, automatically added option)
