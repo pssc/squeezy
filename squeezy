@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #
 # Version:
-#    0.18
+#    0.19
 #
 # Copyright:
 #    Stephen Blott (smblott@gmail.com)
@@ -781,7 +781,7 @@ sub command
    '-players' =>
       {
 	 help    => 'show all configured players',
-	 command => sub { print map { "$_\n" } @player; }
+	 command => sub { print map { $_->{name}."\n" } @player; }
       },
 
    '-playing' =>
@@ -816,7 +816,7 @@ sub command
 	       my $squeezy = $0; # not $my_name
 	       my $dir     = $squeezy;
 		  $dir     =~ s:/[^/]+$::;
-	       foreach ( map { lc } @player )
+	       foreach ( map { lc $_->{name} } @player )
 		  { print "ln -vf \"$squeezy\" \"$dir/$_\"\n"; }
 	    }
       },
@@ -978,22 +978,22 @@ sub command
 # (options are not added if they would overwrite existing options; so, if you
 #  have a player named 'Help', then an option '-help' will not be added)
 #
-
 foreach ( @player )
 {
-   my $p  = $_{name};               # player name
+   my $po  = $_;              
+   my $p  = $_->{name};               # player name
+   my $s  = $_->{server};
    my $ns = $p;
-   my $ns =~ s/ /_/g; 	      # remove spaces
-   my $lc = lc $p;            # same, but lower case
+   $ns =~ s/ /_/g; 	      # remove spaces
+   my $lc = lc $ns;           # same, but lower case
    my $fc = substr($lc,0,1);  # just the first character
-
    foreach ( $ns, $lc, $fc )
    {
       if ( ! $command{$_} )
       {
 	 $command{"-$_"} = { is_player => 1,
 			     help      => "select player $p (automatically added option)",
-			     command   => sub { $group  = undef; $player = $p; print "$p selected\n"; }, };
+			     command   => sub { $group  = undef; $def_player = $po; $player = $p; $server = $s->{IP}; $socket = $s->{SOCKET} || undef; print "$p selected\n"; }, };
       }
    }
 }
