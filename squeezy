@@ -69,8 +69,8 @@ my $prefixpre  = '';
 my $prefixpos  = '';
 my $tick       = undef;
 my $player     = undef;
-my $def_player     = undef;
-my $autodiscover = undef;
+my $def_player = undef;
+my $autodiscover = 1;
 my %command;
 my @player;
 my @servers = ();
@@ -130,7 +130,7 @@ sub send_command
 		                           Timeout  => $timeout,
 		                           Proto    => 'tcp' )
 	         or
-	         die "squeezy error: could not connect to $server port $port\n";
+	         (warn "squeezy error: could not connect to $server port $port\n" and return -1);
 
       if ( $username )
       {
@@ -185,7 +185,8 @@ if ( -r $conf_file )
 
       my @arg = split /\s+/;
 
-      $arg[0] eq 'server'   && $#arg == 1 && do { $server   = $arg[1]; next; };
+      $arg[0] eq 'server'   && $#arg == 1 && do { $server   = $arg[1]; push @servers, { HOST => $arg[1] }; next; };
+      $arg[0] eq 'server'   && $#arg == 2 && do { $server   = $arg[1]; push @servers, { HOST => $arg[1], PORT => $arg[2]}; next; };
       $arg[0] eq 'port'     && $#arg == 1 && do { $port     = $arg[1]; next; };
       $arg[0] eq 'username' && $#arg == 1 && do { $username = $arg[1]; next; };
       $arg[0] eq 'password' && $#arg == 1 && do { $password = $arg[1]; next; };
@@ -229,9 +230,9 @@ if ( -r $conf_file )
    }
 
    close CONFIG;
-}
+} 
 
-if ( ! -r $conf_file or $autodiscover ) {
+if ( (! -r $conf_file) or $autodiscover ) {
    foreach my $port (@udp_ports) {
       socket(my $socket, AF_INET, SOCK_DGRAM, getprotobyname('udp'));
       setsockopt($socket, SOL_SOCKET, SO_BROADCAST, 1);
@@ -254,7 +255,7 @@ if ( ! -r $conf_file or $autodiscover ) {
                 $len2 = unpack("xxxxC", $msg);
                 $val  = $len2 ? substr($msg, 5, $len2) : undef;
 
-                #print(" TLV: $tag len: $len2, $val");
+                # print(" TLV: $tag len: $len2, $val");
 
                 $bag->{$tag} = $val;
 
@@ -326,6 +327,7 @@ while ( ! $def_player )
       print STDERR "squeezy warning: no players specified or detected\n";
       print STDERR "                 you likely won't be able to do much without them\n";
       $group[0][0] = 'NO_PLAYERS_THIS_WILL_NOT_WORK';
+      exit 1;
    }
 }
 
