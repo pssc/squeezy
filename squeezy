@@ -71,6 +71,7 @@ my $tick       = undef;
 my $player     = undef;
 my $def_player = undef;
 my $autodiscover = 1;
+my $playerdiscover = 1;
 my %command;
 my @player;
 my @servers = ();
@@ -130,7 +131,7 @@ sub send_command
 		                           Timeout  => $timeout,
 		                           Proto    => 'tcp' )
 	         or
-	         (warn "squeezy error: could not connect to $server port $port\n" and return -1);
+	         (warn "squeezy error: could not connect to '$server' port '$port'\n" and return -1);
 
       if ( $username )
       {
@@ -221,6 +222,11 @@ if ( -r $conf_file )
          { if ( $#arg == 0 ) { next; }
            if ( $#arg == 1 ) { $autodiscover = (lc($arg[1]) eq 'yes') ? 1 : 0; next; } };
 
+      $arg[0] eq 'playerdiscover'
+         && do
+         { if ( $#arg == 0 ) { next; }
+           if ( $#arg == 1 ) { $playerdiscover = (lc($arg[1]) eq 'yes') ? 1 : 0; next; } };
+
       $arg[0] eq 'discoverperiod'
          && do
          { if ( $#arg == 0 ) { next; }
@@ -232,7 +238,9 @@ if ( -r $conf_file )
    close CONFIG;
 } 
 
-if ( (! -r $conf_file) or $autodiscover ) {
+
+
+if ( $autodiscover ) {
    foreach my $port (@udp_ports) {
       socket(my $socket, AF_INET, SOCK_DGRAM, getprotobyname('udp'));
       setsockopt($socket, SOL_SOCKET, SO_BROADCAST, 1);
@@ -273,13 +281,17 @@ if ( (! -r $conf_file) or $autodiscover ) {
       }
       close $socket;
    }
+} 
 
-   if (scalar(@servers) > 1 ) {
-       print 'servers: ', join(', ', map { $_->{NAME}.":".($_->{HOST} || "uknown").":".($_->{IP} || "unkown")  } @servers), "\n";
-   }
+if (scalar(@servers) == 0 ) {
+     push @servers, { HOST=>$server, PORT=>$port} 
+} elsif (scalar(@servers) > 1 ) {
+      print 'servers: ', join(', ', map { $_->{NAME}.":".($_->{HOST} || "uknown").":".($_->{IP} || "unkown")  } @servers), "\n";
+}
 
-   # ask squeezeservers on 9090 
-   # for the names of players
+if ($playerdiscover) {
+    # ask squeezeservers on 9090 
+    # for the names of players
    foreach my $host (@servers) {
        $server = $host->{IP} || $host->{HOST};
        my $count = pick_field 2, send_command 'player count ?';
@@ -995,7 +1007,7 @@ foreach ( @player )
       {
 	 $command{"-$_"} = { is_player => 1,
 			     help      => "select player $p (automatically added option)",
-			     command   => sub { $group  = undef; $def_player = $po; $player = $p; $server = $s->{IP}; $socket = $s->{SOCKET} || undef; print "$p selected\n"; }, };
+			     command   => sub { $group  = undef; $def_player = $po; $player = $p; $server = $s->{IP} || $s->{HOST} || $server; $socket = $s->{SOCKET} || undef; $port = $s->{PORT} || $port; print "$p selected\n"; }, };
       }
    }
 }
@@ -1080,7 +1092,8 @@ while ( 0 <= $#ARGV )
 	 if ( exists $p->{name} ) {
  		$socket = $p->{SOCKET} || undef;
  		$player = $p->{name};
-                $server = $p->{server}{IP} || $p->{server}{HOST};
+                $server = $p->{server}{IP} || $p->{server}{HOST} || $server;
+                $port = $p->{PORT} || $port;
 	 	command $arg, $ARGV[0];
 	 } else {
 		 die "squeezy invalid player object $p\n";
