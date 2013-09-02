@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #
 # Version:
-#    0.20
+#    0.21
 #
 # Copyright:
 #    Stephen Blott (smblott@gmail.com)
@@ -51,11 +51,12 @@ my $conf_file = $conf_file[0];
 #
 # some globals
 #
-
+my $module     = "JSON::RPC::Client";
 my $my_name    =  "/$0";
    $my_name    =~ s:^.*/::;
 my $server     = 'localhost';
 my $port       =  9090;
+my $json       =  9000;
 my $username   =  undef;
 my $password   =  undef;
 my $group      =  undef;
@@ -77,11 +78,25 @@ my @player;
 my @servers = ();
 my @udp_ports = (3483);
 my $DISCOVERY_PERIOD = 1;   # discovery period
-my $timeout = 3;  
+my $timeout = 3;
+my $json_api_uri_post = "/jsonrpc.js";
+my $json_api_uri_pre = "http://";
+my $socket = undef;
 
 #
 # utilities
 #
+sub json_support {
+      # check whether module is already loaded
+    return if defined $INC{'JSON/RPC/Client'};
+
+    eval {
+        require JSON::RPC::Client;
+        JSON::RPC::Client->import();
+    };
+
+    die "JSON features not supported: JSON::RPC::Client not available" if $@;
+}
 
 sub urlencode {
   my $str = shift;
@@ -108,6 +123,15 @@ sub report
    return $value;
 }
 
+sub jsonr {
+   my ($key , $r) = @_;
+    if (ref($r) eq "HASH") {
+      print $$r{$key}."\n";
+    } else {
+      print STERR $r;
+    }
+}
+
 sub terminal_cols
 {
    -t STDOUT || return undef;
@@ -117,9 +141,6 @@ sub terminal_cols
 #
 # server socket commands
 #
-
-
-my $socket = undef;
 sub send_command
 {
    # this a syncronous command/response interaction, one line is sent to the
@@ -168,6 +189,42 @@ sub send_command
    return $response;
 }
 
+=head2 silmrequest ( $server, $player, @command_and_ags )
+
+query using json slim request interface.
+
+=cut
+
+sub slimrequest {
+   my ($server, $player, $command_and_ags) = @_;
+   json_support();
+
+   my $client = $server->{JSONC} ? $server->{JSONC} : new JSON::RPC::Client;
+   my $uri    = $json_api_uri_pre.($server->{IP}||$server->{HOST}).":".($server->{JSON}||$json).$json_api_uri_post;
+
+   my $callobj = {
+      method  => 'slim.request',
+   };
+
+   $client->version("1.0");
+   $client->id("squeezy");
+
+   $callobj->{params} = [ ($player->{name} || "") ,$command_and_ags ];
+
+   my $res = $client->call($uri, $callobj);
+   if($res) {
+      if ($res->is_error) {
+          return "Error : ". $res->error_message;
+      }
+      else {
+          return $res->result;
+      }
+   }
+   else {
+      return $client->status_line."\n";
+   }
+}
+
 #
 # read configuration file
 #
@@ -188,7 +245,9 @@ if ( -r $conf_file )
 
       $arg[0] eq 'server'   && $#arg == 1 && do { $server   = $arg[1]; push @servers, { HOST => $arg[1] }; next; };
       $arg[0] eq 'server'   && $#arg == 2 && do { $server   = $arg[1]; push @servers, { HOST => $arg[1], PORT => $arg[2]}; next; };
+      $arg[0] eq 'server'   && $#arg == 3 && do { $server   = $arg[1]; push @servers, { HOST => $arg[1], PORT => $arg[2], JSON => $arg[3]}; next; };
       $arg[0] eq 'port'     && $#arg == 1 && do { $port     = $arg[1]; next; };
+      $arg[0] eq 'json'     && $#arg == 1 && do { $json     = $arg[1]; next; };
       $arg[0] eq 'username' && $#arg == 1 && do { $username = $arg[1]; next; };
       $arg[0] eq 'password' && $#arg == 1 && do { $password = $arg[1]; next; };
 
@@ -338,8 +397,8 @@ while ( ! $def_player )
    {
       print STDERR "squeezy warning: no players specified or detected\n";
       print STDERR "                 you likely won't be able to do much without them\n";
-      $group[0][0] = 'NO_PLAYERS_THIS_WILL_NOT_WORK';
-      exit 1;
+      #$group[0][0] = 'NO_PLAYERS_THIS_WILL_NOT_WORK';
+      last;
    }
 }
 
@@ -456,7 +515,11 @@ sub listen
 sub command
 {
    my $command = shift;
-   $command{$command}->{command}(@_);
+   if ( $command{$command}->{json} ) {
+       $command{$command}->{command}(shift,shift,@_);
+   } else {
+       $command{$command}->{command}(@_);
+   }
 }
 
 %command =
@@ -978,7 +1041,13 @@ sub command
 	       report 'volume', pick_field 3, send_command urlencode($player)." mixer volume ?";
 	    }
       },
-
+   '-cliport' =>
+      {
+        help  => "query cli port VIA json",
+	json => 1,
+	server => 1,
+        command  => sub { jsonr("_p2",slimrequest(shift,undef,["pref" ,"plugin.cli:cliport","?" ])); },
+      },
 );
 
 #
@@ -1068,6 +1137,7 @@ while ( 0 <= $#ARGV )
 {
    my $arg  = shift @ARGV;
    my @whom = defined $group ? @{$group[$group]} : ( $def_player );
+   ## FIXME some commands operate on server only...
 
    if ( $command{$arg} )
    {
@@ -1089,12 +1159,18 @@ while ( 0 <= $#ARGV )
       #
       foreach my $p ( @whom )
       {
-	 if ( exists $p->{name} ) {
+	 if ( exists $p->{name} || $command{$arg}->{server} ) {
  		$socket = $p->{SOCKET} || undef;
- 		$player = $p->{name};
-                $server = $p->{server}{IP} || $p->{server}{HOST} || $server;
+ 		$player = $p->{name} || undef;
+                $server = $p->{server} ? $p->{server}{IP} || $p->{server}{HOST} : $server;
                 $port = $p->{PORT} || $port;
-	 	command $arg, $ARGV[0];
+                if ( $command{$arg}->{json} ) {
+                    ## FIXME some commands operate on server only...
+	 	    command $arg, ($p->{server} ||$servers[0]), $p, $ARGV[0];
+                } else {
+	 	    command $arg, $ARGV[0];
+                }
+
 	 } else {
 		 die "squeezy invalid player object $p\n";
 	 }
