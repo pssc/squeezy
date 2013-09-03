@@ -351,7 +351,7 @@ if ( $autodiscover ) {
             $bag->{IP} = inet_ntoa($ipaddr);
             $bag->{HOST} = gethostbyaddr($ipaddr, AF_INET);
             if (json_support(1)) {
-                my $cliport = jsonp('p2',slimrequest($bag,undef,["pref" ,"plugin.cli:cliport","?" ]));
+                my $cliport = jsonp('_p2',slimrequest($bag,undef,["pref" ,"plugin.cli:cliport","?" ]));
    	        $bag->{PORT} = $cliport if $cliport; 
 	    }
 	    push @servers, $bag;
@@ -1062,10 +1062,25 @@ sub command
       },
    '-cliport' =>
       {
-        help  => "query cli port VIA json",
+        help  => "query cli port VIA JSON",
 	json => 1,
 	server => 1,
         command  => sub { jsonr("_p2",slimrequest(shift,undef,["pref" ,"plugin.cli:cliport","?" ])); },
+      },
+   '-json' =>
+      {
+        help  => "send command via JSON interface quoted as one argument",
+	json => 1,
+	server => 1,
+	do_shift => 1,
+        command  => sub { 
+                            my $result = slimrequest(shift,shift,[split(/\s+/,shift,-1)]); 
+                            if (ref $result eq 'HASH') {
+                               foreach (keys $result) {
+                                  print $_,": ",$$result{$_},"\n";;
+                               }
+			    } else { print "undef\n";}
+        }
       },
 );
 
