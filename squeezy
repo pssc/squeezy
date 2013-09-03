@@ -24,7 +24,6 @@ use strict;
 #
 # imports
 #
-
 use IO::Socket;
 use IO::Select;
 use Cwd 'realpath';
@@ -33,7 +32,6 @@ use Cwd 'realpath';
 #
 # find a configuration file
 #
-
 my $conf_base = 'squeezy.conf';
 my $conf_locs = qq( ./$conf_base
 		    $ENV{HOME}/.$conf_base
@@ -87,15 +85,22 @@ my $socket = undef;
 # utilities
 #
 sub json_support {
-      # check whether module is already loaded
-    return if defined $INC{'JSON/RPC/Client'};
+    my $soft = shift;
+     
+    # check whether module is already loaded
+    return 1 if defined $INC{'JSON/RPC/Client.pm'};
 
     eval {
         require JSON::RPC::Client;
         JSON::RPC::Client->import();
     };
 
-    die "JSON features not supported: JSON::RPC::Client not available" if $@;
+    if ($@) {
+       die "JSON features not supported: JSON::RPC::Client not available" if not $soft;
+       warn "JSON features not supported: JSON::RPC::Client not available... Trying to cope." if $soft > 1;
+       return 0;
+    }
+    return 1;
 }
 
 sub urlencode {
@@ -129,6 +134,16 @@ sub jsonr {
       print $$r{$key}."\n";
     } else {
       print STERR $r;
+    }
+}
+
+sub jsonp {
+   my ($key , $r) = @_;
+    if (ref($r) eq "HASH" and defined $$r{$key}) {
+      return $$r{$key};
+    } else {
+      print STERR $r;
+      return undef;
     }
 }
 
@@ -332,10 +347,14 @@ if ( $autodiscover ) {
 
          # get server's IP address
          if ($clientpaddr) {
-                my ($portno, $ipaddr) = sockaddr_in($clientpaddr);
-                $bag->{IP} = inet_ntoa($ipaddr);
-                $bag->{HOST} = gethostbyaddr($ipaddr, AF_INET);
-		push @servers, $bag
+            my ($portno, $ipaddr) = sockaddr_in($clientpaddr);
+            $bag->{IP} = inet_ntoa($ipaddr);
+            $bag->{HOST} = gethostbyaddr($ipaddr, AF_INET);
+            if (json_support(1)) {
+                my $cliport = jsonp('p2',slimrequest($bag,undef,["pref" ,"plugin.cli:cliport","?" ]));
+   	        $bag->{PORT} = $cliport if $cliport; 
+	    }
+	    push @servers, $bag;
          }
       }
       close $socket;
