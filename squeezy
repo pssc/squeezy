@@ -350,7 +350,7 @@ if ( $autodiscover ) {
             my ($portno, $ipaddr) = sockaddr_in($clientpaddr);
             $bag->{IP} = inet_ntoa($ipaddr);
             $bag->{HOST} = gethostbyaddr($ipaddr, AF_INET);
-            if (json_support(1)) {
+            if (json_support(2)) {
                 my $cliport = jsonp('_p2',slimrequest($bag,undef,["pref" ,"plugin.cli:cliport","?" ]));
    	        $bag->{PORT} = $cliport if $cliport; 
 	    }
