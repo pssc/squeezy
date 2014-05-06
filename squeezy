@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #
 # Version:
-#    0.21
+#    0.22
 #
 # Copyright:
 #    Stephen Blott (smblott@gmail.com)
@@ -27,7 +27,7 @@ use strict;
 use IO::Socket;
 use IO::Select;
 use Cwd 'realpath';
-#use Data::Dumper;
+use Data::Dumper;
 
 #
 # find a configuration file
@@ -76,7 +76,8 @@ my @player;
 my @servers = ();
 my @udp_ports = (3483);
 my $DISCOVERY_PERIOD = 1;   # discovery period
-my $timeout = 3;
+my $showtime = 7;
+my $timeout = $showtime +1;
 my $json_api_uri_post = "/jsonrpc.js";
 my $json_api_uri_pre = "http://";
 my $socket = undef;
@@ -929,6 +930,19 @@ sub command
 	 command => sub { command -volume, "-$lot"; }
       },
 
+   '-rescan' =>
+      {
+         help     => "rescan changes|playlists|clean",
+	 do_shift => 1,
+         command  => sub { my $st = urlencode shift;
+                 if    ($st == "changes"   ) { $st ="rescan"; }
+                 elsif ($st == "playlists" ) { $st ="rescan playlists"; }
+                 elsif ($st == "clean"     ) { $st ="wipecache"; }
+                 else                      { $st= "rescan ".urlencode($st); }
+                 send_command $st;
+         }
+      },
+
    '-shortcuts' =>
       {
 	 help     => 'show the configured shortcuts',
@@ -939,10 +953,10 @@ sub command
 
    '-show' =>
       {
-	 help    => "show a message on the player's display (for six seconds)",
+	 help    => "show a message on the player's display (for $showtime seconds)",
 	 do_shift => 1,
 	 command  => sub { my $show = urlencode shift;
-	                   send_command urlencode($player)." show font:huge duration:6 centered:1 line2:$show"; }
+	                   send_command urlencode($player)." show font:huge duration:".$showtime." centered:1 line2:$show"; }
       },
 
    '-silent' =>
