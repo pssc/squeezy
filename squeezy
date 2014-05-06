@@ -1069,7 +1069,7 @@ sub command
 		     { die "squeezy -volume: invalid volume specifier ($vol)\n"; }
 		  if ( 100 < $vol || $vol < -100)
 		     { die "squeezy -volume: invalid volume specifier ($vol, should be min/max 100)\n"; }
-		  send_command urnencode($player)." mixer volume $vol";
+		  send_command urlencode($player)." mixer volume $vol";
 	       }
 	       report 'volume', pick_field 3, send_command urlencode($player)." mixer volume ?";
 	    }
