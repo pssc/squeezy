@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #
 # Version:
-#    0.22
+#    0.23
 #
 # Copyright:
 #    Stephen Blott (smblott@gmail.com)
@@ -68,6 +68,7 @@ my $prefixpre  = '';
 my $prefixpos  = '';
 my $tick       = undef;
 my $player     = undef;
+my $cpo         = undef;
 my $def_player = undef;
 my $autodiscover = 1;
 my $playerdiscover = 1;
@@ -379,11 +380,12 @@ if ($playerdiscover) {
            for (my $i=0; $i<$count; $i+=1)
            {
 	       my $pn = pick_field 3, send_command "player name $i ?"; 
-	       if ( $pn && $pn ne '?' ) { push @{$group[0]}, { name=>$pn , server=>$host } 
+               my $pid = pick_field 3, send_command "player id $i ?"; 
+	       if ( $pn && $pn ne '?' ) { push @{$group[0]}, { name=>$pn, pid=>$pid , server=>$host } 
                } else {  
-                  my $pid = pick_field 3, send_command "player id $i ?"; 
-	          if ( $pid && $pid ne '?' )
-	             { push @{$group[0]}, { name=>$pid, server=>$host} } 
+                      # Error?
+	              if ( $pid && $pid ne '?' )
+	                  { push @{$group[0]}, { name=>$pid, server=>$host} } 
                }
            }
            if ( $group[0][0] )
@@ -542,6 +544,8 @@ sub command
    }
 }
 
+## Warning CLI API supports Using the name insead of the ID but only!!
+# if its the first arg IE 0
 %command =
 (
 
@@ -798,14 +802,30 @@ sub command
 
    '-player_id' =>
       {
+         ## not the real player id command as this would need a index or ID we get the name back on failure ie no id.
 	 help     => 'show the id of the player',
-	 command  => sub { report 'player id',  pick_field 3, send_command "player id ".urlencode($player)." ?"; }
+	 command  => sub { 
+                         my $pid = send_command urlencode($player);
+                         if ($pid eq $player) {
+                            report 'player id',  pick_field 0, "None($cpo->{pid})";
+                         } else {
+                            report 'player id',  pick_field 0, $pid;
+                         }
+                     }
       },
 
    '-player_ip' =>
       {
+         ## Needs to be id or index not name if not vaild id we just get the fist players IP back... so check vaild id?
 	 help     => 'show the ip address of the player',
-	 command  => sub { report 'player IP',  pick_field 3, send_command "player ip ".urlencode($player)." ?"; }
+	 command  => sub { 
+                             my $pid = $cpo->{pid} || send_command urlencode($player);
+                             if ($pid eq $player) {
+                                report 'player IP', pick_field 0, "None";
+                             } else {
+                                report 'player IP',  pick_field 3, send_command "player ip ".urlencode($pid)." ?"; 
+                             }
+                     }
       },
 
    '-playlist' =>
@@ -819,9 +839,9 @@ sub command
 	       my $cols  = terminal_cols();
 	       for (my $i=0; $i<$count; $i+= 1)
 	       {
-		  my $album  = pick_field 4, send_command urlencode($player)." playlist album  $i ?";
+		  my $album  = pick_field 4, send_command urlencode($player)." playlist album $i ?";
 		  my $artist = pick_field 4, send_command urlencode($player)." playlist artist $i ?";
-		  my $title  = pick_field 4, send_command  urlencode($player)." playlist title  $i ?";
+		  my $title  = pick_field 4, send_command urlencode($player)." playlist title $i ?";
 		  if ( $cols )
 		  {
 		     my $left  = sprintf "%s %-3d %s", $i == $index ? '>' : ' ', $i, $title;
@@ -871,8 +891,9 @@ sub command
 
    '-player_model' =>
       {
+         ## Needs to be id or index not name 
 	 help     => 'show the model of the player',
-	 command  => sub { report 'player model',  pick_field 3, send_command "player model ".urlencode($player)." ?"; }
+	 command  => sub { report 'player model',  pick_field 3, send_command "player model ".urlencode($cpo->{pid})." ?"; }
       },
 
    '-players' =>
@@ -1014,7 +1035,8 @@ sub command
 	 command  =>
 	    sub
 	    {
-	       my $arg = shift;
+               # arg needs to be a real player id not name.
+               my $arg = send_command  urlencode(shift);
 	       send_command  urlencode($player)." sync ".urlencode($arg);
 	       report 'sync', pick_field 2, send_command  urlencode($player)." sync ?";
 	    }
@@ -1127,7 +1149,7 @@ foreach ( @player )
       {
 	 $command{"-$_"} = { is_player => 1,
 			     help      => "select player $p (automatically added option)",
-			     command   => sub { $group  = undef; $def_player = $po; $player = $p; $server = $s->{IP} || $s->{HOST} || $server; $socket = $s->{SOCKET} || undef; $port = $s->{PORT} || $port; print "$p selected\n"; }, };
+			     command   => sub { $group  = undef; $def_player = $po; $player = $p; $cpo = $po; $server = $s->{IP} || $s->{HOST} || $server; $socket = $s->{SOCKET} || undef; $port = $s->{PORT} || $port; print "$p selected\n"; }, };
       }
    }
 }
@@ -1213,6 +1235,7 @@ while ( 0 <= $#ARGV )
 	 if ( exists $p->{name} || $command{$arg}->{server} ) {
  		$socket = $p->{SOCKET} || undef;
  		$player = $p->{name} || undef;
+                $cpo =  $p; # Needed for groups as def player not set correctly.
                 $server = $p->{server} ? $p->{server}{IP} || $p->{server}{HOST} : $server;
                 $port = $p->{PORT} || $port;
                 if ( $command{$arg}->{json} ) {
