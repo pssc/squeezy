@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #
 # Version:
-#    0.23
+#    0.24
 #
 # Copyright:
 #    Stephen Blott (smblott@gmail.com)
@@ -152,7 +152,7 @@ sub jsonp {
 sub terminal_cols
 {
    -t STDOUT || return undef;
-   return (map { chomp; $_ } `tput co`)[0];
+   return (map { chomp; $_ } `tput cols`)[0];
 }
 
 #
