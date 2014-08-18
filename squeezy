@@ -556,6 +556,18 @@ sub command
 	 command  => sub { command -play, shift, 'add'; }
       },
 
+   '-alarms' =>
+	{
+	   help => 'enabled alarms count (can only sound if not generally disabled)',
+	   command => sub { report 'enabled alarms', pick_field 6, send_command urlencode($player)." alarms 0 99 filter:enabled"; }
+	},
+
+   '-alarms_enabled' =>
+        {
+	   help => 'alarms generally enabled?',
+	   command => sub { report 'alarms enabled', pick_field 3, send_command urlencode($player)." playerpref alarmsEnabled ?"; }
+	},
+
    '-all' =>
       {
 	 help     => 'apply subsequent commands to all players (eg. squeezy -all -off)',
@@ -569,6 +581,20 @@ sub command
 	 command  => sub { send_command urlencode($player), 'button', $_[0]; }
       },
 
+   '-cliport' =>
+      {
+        help  => "query cli port VIA JSON",
+	json => 1,
+	server => 1,
+        command  => sub { jsonr("_p2",slimrequest(shift,undef,["pref" ,"plugin.cli:cliport","?" ])); },
+      },
+
+   '-connected' =>
+	{
+	   help => 'is player connected?',
+           command => sub { report 'connected', pick_field 2, send_command urlencode($player)." connected ?"; }
+	},
+
    '-default' =>
       {
 	 help    => "play the default shortcut (the first one in the configuration file, currently $default)",
@@ -580,6 +606,14 @@ sub command
 	       command -play, $default;
 	    }
       },
+
+    '-die_if_alarms' =>
+	{
+	   help => 'if alarms are disabled generally or no alarm is enabled, then die immediately; exit code 1',
+command =>
+	   sub { if ( command('-alarms_enabled') && command('-alarms') ne 'count:0')
+	   { print "$player has enabled alarms and alarms are enabled generally, exiting immediately\n"; exit(1); } }
+	},
 
    '-die_if_playing' =>
       {
@@ -594,6 +628,13 @@ sub command
 	 help    => 'show the elapsed time in currently-playing track/url',
 	 command => sub { report 'time', pick_field 2, send_command urlencode($player)." time ?"; }
       },
+
+    '-exit_if_connected' =>
+	{
+	   help => 'if this player is not connected, then exit immediately; exit code 0',
+	   command => sub { if ( command('-connected') eq 1 )
+	   { print "$player is  connected, exiting immediately\n"; exit(0); } }
+	},
 
    '-exit_if_playing' =>
       {
@@ -663,6 +704,23 @@ sub command
 		  }
 	       }
 	    }
+      },
+
+   '-json' =>
+      {
+        help  => "send command via JSON interface quoted as one argument",
+	json => 1,
+	server => 1,
+	do_shift => 1,
+        command  => sub {
+                            my $result = slimrequest(shift,shift,[split(/\s+/,shift,-1)]); 
+                            print Dumper($result);
+                            #if (ref $result eq 'HASH') {
+                            #   foreach (keys $result) {
+                            #      print $_,": ",$$result{$_},"\n";;
+                            #   }
+			    #} else { print "undef\n";}
+        }
       },
 
    '-jump' =>
@@ -1099,29 +1157,6 @@ sub command
 	       }
 	       report 'volume', pick_field 3, send_command urlencode($player)." mixer volume ?";
 	    }
-      },
-   '-cliport' =>
-      {
-        help  => "query cli port VIA JSON",
-	json => 1,
-	server => 1,
-        command  => sub { jsonr("_p2",slimrequest(shift,undef,["pref" ,"plugin.cli:cliport","?" ])); },
-      },
-   '-json' =>
-      {
-        help  => "send command via JSON interface quoted as one argument",
-	json => 1,
-	server => 1,
-	do_shift => 1,
-        command  => sub { 
-                            my $result = slimrequest(shift,shift,[split(/\s+/,shift,-1)]); 
-                            print Dumper($result);
-                            #if (ref $result eq 'HASH') {
-                            #   foreach (keys $result) {
-                            #      print $_,": ",$$result{$_},"\n";;
-                            #   }
-			    #} else { print "undef\n";}
-        }
       },
 );
 
