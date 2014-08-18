@@ -645,6 +645,7 @@ sub command
    '-help' =>
       {
 	 help    => 'show this help message',
+	 server => 1,
 	 command =>
 	    sub
 	    {
@@ -1114,11 +1115,12 @@ sub command
 	do_shift => 1,
         command  => sub { 
                             my $result = slimrequest(shift,shift,[split(/\s+/,shift,-1)]); 
-                            if (ref $result eq 'HASH') {
-                               foreach (keys $result) {
-                                  print $_,": ",$$result{$_},"\n";;
-                               }
-			    } else { print "undef\n";}
+                            print Dumper($result);
+                            #if (ref $result eq 'HASH') {
+                            #   foreach (keys $result) {
+                            #      print $_,": ",$$result{$_},"\n";;
+                            #   }
+			    #} else { print "undef\n";}
         }
       },
 );
