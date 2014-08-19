@@ -82,6 +82,8 @@ my $timeout = $showtime +1;
 my $json_api_uri_post = "/jsonrpc.js";
 my $json_api_uri_pre = "http://";
 my $socket = undef;
+my $action = sub{};
+my $not = 0;
 
 #
 # utilities
@@ -120,6 +122,14 @@ sub urldecode {
 sub pick_field
 {
    return urldecode((split /\s+/, shift)[shift]);
+}
+
+sub notted {
+   if ($not) {
+      return not shift
+   } else {
+      return shift
+   }
 }
 
 sub report
@@ -592,7 +602,7 @@ sub command
    '-connected' =>
 	{
 	   help => 'is player connected?',
-           command => sub { report 'connected', pick_field 2, send_command urlencode($player)." connected ?"; }
+           command => sub { report 'connected', pick_field( 2, send_command urlencode($player)." connected ?"); }
 	},
 
    '-default' =>
@@ -607,12 +617,12 @@ sub command
 	    }
       },
 
-    '-die_if_alarms' =>
+    '-if_alarm' =>
 	{
 	   help => 'if alarms are disabled generally or no alarm is enabled, then die immediately; exit code 1',
 command =>
-	   sub { if ( command('-alarms_enabled') && command('-alarms') ne 'count:0')
-	   { print "$player has enabled alarms and alarms are enabled generally, exiting immediately\n"; exit(1); } }
+	   sub { if (notted( my $r = command('-alarms_enabled') && command('-alarms') ne 'count:0'))
+	   { print "$player has ",$r ? "" : "no ","active alarm \n"; &$action; } }
 	},
 
    '-die_if_playing' =>
@@ -629,18 +639,31 @@ command =>
 	 command => sub { report 'time', pick_field 2, send_command urlencode($player)." time ?"; }
       },
 
-    '-exit_if_connected' =>
+    '-exit' =>
+        {
+          help    => '',
+          do_shift => 1,
+          command => sub { my $ecode = shift ;$action = sub { print "Exiting $ecode\n"; exit($ecode); $action=sub{} } },
+        },
+
+    '-not' =>
+	{
+	  help   => '',
+          command => sub { $not = 1 },
+	},
+
+    '-if_connected' =>
 	{
 	   help => 'if this player is not connected, then exit immediately; exit code 0',
-	   command => sub { if ( command('-connected') eq 1 )
-	   { print "$player is  connected, exiting immediately\n"; exit(0); } }
+	   command => sub { if (notted( my $r = command('-connected') eq 1) )
+	   { print "$player is ",$r ? "" : "not " ,"connected\n"; &$action; } }
 	},
 
    '-exit_if_playing' =>
       {
 	 help    => 'if this player is on and playing, then exit immediately; exit code 0',
 	 command =>
-	    sub { if ( command('-power') && command('-mode') eq 'play' )
+	    sub { if ( notted(command('-power') && command('-mode') eq 'play')) 
 		     { print "$player is on and playing, exiting immediately\n"; exit(0); } }
       },
 
