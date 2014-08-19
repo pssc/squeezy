@@ -659,11 +659,18 @@ command =>
 	   { print "$player is ",$r ? "" : "not " ,"connected\n"; &$action; } }
 	},
 
+   '-if_playing' =>
+        {
+	   help => 'if this player is on and playing',
+	   command => sub { if (notted( my $r = (command('-power') && command('-mode') eq 'play')) )
+	   { print "$player is ",$r ? "" : "not " ,"playing,\n"; &$action; } }
+        },
+
    '-exit_if_playing' =>
       {
 	 help    => 'if this player is on and playing, then exit immediately; exit code 0',
 	 command =>
-	    sub { if ( notted(command('-power') && command('-mode') eq 'play')) 
+	    sub { if ( command('-power') && command('-mode') eq 'play') 
 		     { print "$player is on and playing, exiting immediately\n"; exit(0); } }
       },
 
