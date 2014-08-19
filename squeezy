@@ -663,14 +663,14 @@ command =>
         {
 	   help => 'if this player is on and playing',
 	   command => sub { if (notted( my $r = (command('-power') && command('-mode') eq 'play')) )
-	   { print "$player is ",$r ? "" : "not " ,"playing,\n"; &$action; } }
+	   { print "$player is ",$r ? "on and" : "not" ," playing,\n"; &$action; } }
         },
 
    '-exit_if_playing' =>
       {
 	 help    => 'if this player is on and playing, then exit immediately; exit code 0',
 	 command =>
-	    sub { if ( command('-power') && command('-mode') eq 'play') 
+	    sub { if ( command('-power') && command('-mode') eq 'play')
 		     { print "$player is on and playing, exiting immediately\n"; exit(0); } }
       },
 
@@ -794,7 +794,7 @@ command =>
 	 command =>
 	    sub
 	    {
-	       command -power;
+	       command -power; # FIXME needed?
 	       report 'mode', pick_field 2, send_command urlencode($player)." mode ?";
 	    }
       },
