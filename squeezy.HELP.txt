@@ -1,11 +1,13 @@
+command-line options:
+players: Kitchen, Living, Bedroom, SqueezePlay-Pi
 configuration file:
-   /usr/home/blott/.squeezy.conf
+   ./squeezy.conf
 
 configuration file search locations:
    ./squeezy.conf
-   /usr/home/blott/.squeezy.conf
-   /usr/home/blott/.config/squeezy/squeezy.conf
-   /usr/home/blott/.config/squeezy.conf
+   /home/pc188/.squeezy.conf
+   /home/pc188/.config/squeezy/squeezy.conf
+   /home/pc188/.config/squeezy.conf
    /usr/local/etc/squeezy.conf
    /etc/squeezy.conf
 
@@ -22,24 +24,35 @@ command-line options:
 -Louder           : increase the volume significantly (by 13%)
 -Nico             : select player Nico (automatically added option)
 -Quieter          : reduce the volume significantly (by 13%)
+-Sleepy           : select player Sleepy (automatically added option)
+-SqueezePlay-Pi   : select player SqueezePlay-Pi (automatically added option)
 -add <arg>        : add the indicated file, directory (contents), playlist or url to the playlist
+-alarms           : enabled alarms count (can only sound if not generally disabled)
+-alarms_enabled   : alarms generally enabled?
 -all              : apply subsequent commands to all players (eg. squeezy -all -off)
 -b                : select player Bedroom (automatically added option)
 -bedroom          : select player Bedroom (automatically added option)
 -button <arg>     : send a button key command to the player (see the server's "Default.map" file)
 -c                : select player Chrissy (automatically added option)
 -chrissy          : select player Chrissy (automatically added option)
+-cliport          : query cli port VIA JSON
+-connected        : is player connected?
 -currenttitle     : show the currently-playing track
 -default          : play the default shortcut (the first one in the configuration file, currently http://localhost:7654/dvb-last.mp3)
 -die_if_playing   : if this player is on and playing, then die immediately; exit code 1
 -dvb              : play shortcut dvb (http://localhost:7654/dvb-last.mp3, automatically added option)
 -elapsed          : show the elapsed time in currently-playing track/url
+-exit <arg>       : set up action for -if_XXXX to exit with specificed code
 -exit_if_playing  : if this player is on and playing, then exit immediately; exit code 0
 -exit_if_sleeping : if this player is on and is timing down to sleep, then exit immediately; exit code 0
 -goto <arg>       : jump to a track on the current playlist (relative or absolute, eg. 3, +2, -4)
 -group <arg>      : apply subsequent command to all players in this group (eg. squeezy -group 1)
 -groups           : show the configured player groups
 -help             : show this help message
+-if_alarm         : if alarms are disabled generally or no alarm is enabled
+-if_connected     : if this player is not connected
+-if_playing       : if this player is on and playing
+-json <arg>       : send command via JSON interface quoted as one argument
 -jump <arg>       : jump to a track on the current playlist (relative or absolute, eg. 3, +2, -4)
 -k                : select player Kitchen (automatically added option)
 -kitchen          : select player Kitchen (automatically added option)
@@ -53,6 +66,7 @@ command-line options:
 -n                : select player Nico (automatically added option)
 -next             : jump to the next track on the playlist
 -nico             : select player Nico (automatically added option)
+-not              : -if_XXXX can be prefixed with not
 -off              : turn player off
 -on               : turn player on and start playing the current playlist/track
 -options          : list all options to standard output (useful for configuring shell completion)
@@ -79,12 +93,16 @@ command-line options:
 -r4               : play shortcut r4 (http://localhost:7654/dvb-r4.mp3, automatically added option)
 -r5               : play shortcut r5 (http://localhost:7654/dvb-r5.mp3, automatically added option)
 -r5x              : play shortcut r5x (http://localhost:7654/dvb-r5x.mp3, automatically added option)
+-rescan <arg>     : rescan changes|playlists|clean
+-s                : select player Sleepy (automatically added option)
 -shortcuts        : show the configured shortcuts
--show <arg>       : show a message on the player's display (for six seconds)
+-show <arg>       : show a message on the player's display (for 7 seconds)
 -silent           : redirect standard output to '/dev/null'
 -sleep <arg>      : make the player sleep in <arg> minutes (use '0' or '-sleep_clear' to cancel sleep)
 -sleep_clear      : cancel sleep
 -sleeping         : report on a player's sleep status (indicated in seconds)
+-sleepy           : select player Sleepy (automatically added option)
+-squeezeplay-pi   : select player SqueezeLite-Pi (automatically added option)
 -sync <arg>       : synchronise player with <arg> (another player; unreliable)
 -syncgroups       : show synchronisation groups
 -tick             : make -listen request all players' playback time every second

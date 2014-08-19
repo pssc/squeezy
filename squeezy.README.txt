@@ -1,14 +1,14 @@
 
 Copyright:
    Stephen Blott
-   smblott@gmail.com
+   Phillip Camp
 
 License:
    MIT license
    http://opensource.org/licenses/mit-license.php
 
 Project home:
-   http://code.google.com/p/squeezy/
+   https://github.com/pssc/squeezy
 
 Introduction:
    squeezy is a command-line wrapper around squeezeserver's telnet/CLI
