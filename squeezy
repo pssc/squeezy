@@ -619,7 +619,7 @@ sub command
 
     '-if_alarm' =>
 	{
-	   help => 'if alarms are disabled generally or no alarm is enabled, then die immediately; exit code 1',
+	   help => 'if alarms are disabled generally or no alarm is enabled',
 command =>
 	   sub { if (notted( my $r = command('-alarms_enabled') && command('-alarms') ne 'count:0'))
 	   { print "$player has ",$r ? "" : "no ","active alarm \n"; &$action; } }
@@ -641,20 +641,20 @@ command =>
 
     '-exit' =>
         {
-          help    => '',
+          help    => 'set up action for -if_XXXX to exit with specificed code',
           do_shift => 1,
           command => sub { my $ecode = shift ;$action = sub { print "Exiting $ecode\n"; exit($ecode); $action=sub{} } },
         },
 
     '-not' =>
 	{
-	  help   => '',
+	  help   => '-if_XXXX can be prefixed with not',
           command => sub { $not = 1 },
 	},
 
     '-if_connected' =>
 	{
-	   help => 'if this player is not connected, then exit immediately; exit code 0',
+	   help => 'if this player is not connected',
 	   command => sub { if (notted( my $r = command('-connected') eq 1) )
 	   { print "$player is ",$r ? "" : "not " ,"connected\n"; &$action; } }
 	},
