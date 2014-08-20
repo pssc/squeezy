@@ -553,8 +553,8 @@ sub listen
 sub command
 {
    my $command = shift;
-   if ( $command{$command}->{depricated} ) {
-        warn "Commmand ",$command," depricated.\n";
+   if ( $command{$command}->{deprecated} ) {
+        warn "Commmand ",$command," deprecated.\n";
    }
    if ( $command{$command}->{json} ) {
        $command{$command}->{command}(shift,shift,@_);
@@ -637,7 +637,7 @@ command =>
    '-die_if_playing' =>
       {
 	 help    => 'if this player is on and playing, then die immediately; exit code 1',
-         depricated => 1,
+         deprecated => 1,
 	 command =>
 	    sub { if ( command('-power') && command('-mode') eq 'play' )
 		     { print "$player is on and playing, exiting immediately\n"; exit(1); } }
@@ -687,7 +687,7 @@ command =>
    '-exit_if_playing' =>
       {
 	 help    => 'if this player is on and playing, then exit immediately; exit code 0',
-         depricated => 1,
+         deprecated => 1,
 	 command =>
 	    sub { if ( command('-power') && command('-mode') eq 'play')
 		     { print "$player is on and playing, exiting immediately\n"; exit(0); } }
@@ -696,7 +696,7 @@ command =>
    '-exit_if_sleeping' =>
       {
 	 help    => 'if this player is on and is timing down to sleep, then exit immediately; exit code 0',
-         depricated => 1,
+         deprecated => 1,
 	 command =>
 	    sub {
 	       if ( command('-power') && command('-sleeping') )
@@ -748,7 +748,7 @@ command =>
 	       print "\ncommand-line options:\n";
 	       foreach my $command ( sort keys %command )
 	       {
-		  if ( $command{$command}->{help} and not $command{$command}->{depricated})
+		  if ( $command{$command}->{help} and not $command{$command}->{deprecated})
 		  {
 		     my $argument = $command{$command}->{do_shift} ? ' <arg>' : '';
 		     print sprintf "%-18s: %s\n", "$command$argument", $command{$command}->{help};
