@@ -39,12 +39,9 @@ command-line options:
 -connected        : is player connected?
 -currenttitle     : show the currently-playing track
 -default          : play the default shortcut (the first one in the configuration file, currently http://localhost:7654/dvb-last.mp3)
--die_if_playing   : if this player is on and playing, then die immediately; exit code 1
 -dvb              : play shortcut dvb (http://localhost:7654/dvb-last.mp3, automatically added option)
 -elapsed          : show the elapsed time in currently-playing track/url
 -exit <arg>       : set up action for -if_XXXX to exit with specificed code
--exit_if_playing  : if this player is on and playing, then exit immediately; exit code 0
--exit_if_sleeping : if this player is on and is timing down to sleep, then exit immediately; exit code 0
 -goto <arg>       : jump to a track on the current playlist (relative or absolute, eg. 3, +2, -4)
 -group <arg>      : apply subsequent command to all players in this group (eg. squeezy -group 1)
 -groups           : show the configured player groups
@@ -52,6 +49,7 @@ command-line options:
 -if_alarm         : if alarms are disabled generally or no alarm is enabled
 -if_connected     : if this player is not connected
 -if_playing       : if this player is on and playing
+-if_sleeping      : if this player is on and is timing down to sleep
 -json <arg>       : send command via JSON interface quoted as one argument
 -jump <arg>       : jump to a track on the current playlist (relative or absolute, eg. 3, +2, -4)
 -k                : select player Kitchen (automatically added option)

@@ -1,23 +1,29 @@
 #!/usr/bin/env perl
 #
 # Version:
-#    0.24
-#
-# Copyright:
-#    Stephen Blott (smblott@gmail.com)
-#    Phillip Camp (phillip<dot>camp@gmail.com)
-# 
-# License:
-#    MIT license
-#    http://opensource.org/licenses/mit-license.php
-#
-# Project home:
-#    - http://code.google.com/p/squeezy/
-#
-# See also:
-#    squeezy.README.txt
-#    squeezy.conf
-#
+my $version="0.24";
+
+my $blerb="
+  Squeezy:
+      A command-line utility for controlling squeezebox network audio players via their squeezeserver.
+
+  Copyright:
+     Stephen Blott (smblott@gmail.com)
+     Phillip Camp (phillip<dot>camp@gmail.com)
+
+  License:
+     MIT license
+     http://opensource.org/licenses/mit-license.php
+
+  Project home:
+     - https://github.com/pssc/squeezy
+
+  See also:
+     squeezy.README.txt
+     squeezy.conf
+     squeezy --help
+
+";
 
 use strict;
 
@@ -233,7 +239,7 @@ sub slimrequest {
       method  => 'slim.request',
    };
 
-   $client->version("1.0");
+   $client->version($version);
    $client->id("squeezy");
 
    $callobj->{params} = [ ($player->{name} || "") ,$command_and_ags ];
@@ -547,6 +553,9 @@ sub listen
 sub command
 {
    my $command = shift;
+   if ( $command{$command}->{depricated} ) {
+        warn "Commmand ",$command," depricated.\n";
+   }
    if ( $command{$command}->{json} ) {
        $command{$command}->{command}(shift,shift,@_);
    } else {
@@ -619,15 +628,16 @@ sub command
 
     '-if_alarm' =>
 	{
-	   help => 'if alarms are disabled generally or no alarm is enabled',
+	   help => 'if alarms are enabled generally and an alarm is enabled',
 command =>
-	   sub { if (notted( my $r = command('-alarms_enabled') && command('-alarms') ne 'count:0'))
+	   sub { if (notted( my $r = (command('-alarms_enabled') eq "1" && command('-alarms') ne 'count:0')))
 	   { print "$player has ",$r ? "" : "no ","active alarm \n"; &$action; } }
 	},
 
    '-die_if_playing' =>
       {
 	 help    => 'if this player is on and playing, then die immediately; exit code 1',
+         depricated => 1,
 	 command =>
 	    sub { if ( command('-power') && command('-mode') eq 'play' )
 		     { print "$player is on and playing, exiting immediately\n"; exit(1); } }
@@ -641,7 +651,7 @@ command =>
 
     '-exit' =>
         {
-          help    => 'set up action for -if_XXXX to exit with specificed code',
+          help    => 'set up action for -if_XXXX to exit with specified code',
           do_shift => 1,
           command => sub { my $ecode = shift ;$action = sub { print "Exiting $ecode\n"; exit($ecode); $action=sub{} } },
         },
@@ -662,13 +672,22 @@ command =>
    '-if_playing' =>
         {
 	   help => 'if this player is on and playing',
-	   command => sub { if (notted( my $r = (command('-power') && command('-mode') eq 'play')) )
+	   command => sub { if (notted( my $r = (command('-power') eq "1" && command('-mode') eq 'play')) )
 	   { print "$player is ",$r ? "on and" : "not" ," playing,\n"; &$action; } }
         },
+
+   '-if_sleeping' =>
+	{
+	 help    => 'if this player is on and is timing down to sleep',
+	 command =>
+	    sub { if ( notted( my $r = (command('-power') eq "1" && command('-sleeping') ) ) )
+		{ print "$player is ",$r ? "on and" : "not" ," timing down to sleep\n"; &$action; } }
+	},
 
    '-exit_if_playing' =>
       {
 	 help    => 'if this player is on and playing, then exit immediately; exit code 0',
+         depricated => 1,
 	 command =>
 	    sub { if ( command('-power') && command('-mode') eq 'play')
 		     { print "$player is on and playing, exiting immediately\n"; exit(0); } }
@@ -677,6 +696,7 @@ command =>
    '-exit_if_sleeping' =>
       {
 	 help    => 'if this player is on and is timing down to sleep, then exit immediately; exit code 0',
+         depricated => 1,
 	 command =>
 	    sub {
 	       if ( command('-power') && command('-sleeping') )
@@ -720,6 +740,7 @@ command =>
 	 command =>
 	    sub
 	    {
+               print "squeezy $version\n",$blerb;
 	       print "configuration file:\n   $conf_file\n";
 	       print "\nconfiguration file search locations:\n";
 	       foreach ( map { $_ ? $_ : () } split /\s+/, $conf_locs )
@@ -727,7 +748,7 @@ command =>
 	       print "\ncommand-line options:\n";
 	       foreach my $command ( sort keys %command )
 	       {
-		  if ( $command{$command}->{help} )
+		  if ( $command{$command}->{help} and not $command{$command}->{depricated})
 		  {
 		     my $argument = $command{$command}->{do_shift} ? ' <arg>' : '';
 		     print sprintf "%-18s: %s\n", "$command$argument", $command{$command}->{help};
