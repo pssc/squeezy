@@ -142,7 +142,7 @@ sub report
 {
    my $mess = shift;
    my $value = shift;
-   print join(' ', $player, $mess, &urldecode($value)), "\n";
+   print join(' ', $cpo->{name}|| $player, $mess, &urldecode($value)), "\n";
    return $value;
 }
 
@@ -740,7 +740,7 @@ command =>
 	 command =>
 	    sub
 	    {
-               print "squeezy $version\n",$blerb;
+           print "squeezy $version\n",$blerb;
 	       print "configuration file:\n   $conf_file\n";
 	       print "\nconfiguration file search locations:\n";
 	       foreach ( map { $_ ? $_ : () } split /\s+/, $conf_locs )
@@ -908,6 +908,16 @@ command =>
       {
 	 help    => 'show the number of connected players',
 	 command  => sub { report 'player count', pick_field 2, send_command 'player count ?'; }
+      },
+
+   '-player_name' =>
+      {
+	 help     => 'show the name of the player',
+         do_shift => 1,
+	 command  => sub { 
+                           print 'player name ',  pick_field 3,send_command "player name ".urlencode(shift)." ?";
+			   print "\n"
+                     }
       },
 
    '-player_id' =>
@@ -1136,6 +1146,15 @@ command =>
 	       my @time = split('\.', $time);
 	       report 'sleep', $time[0];
 	    }
+      },
+
+   '-start' =>
+      {
+ 	help     => 'start playing from the current playlist',
+        command  => sub {
+	       send_command  urlencode($player)." play";
+               command -playing;
+        }
       },
 
    '-sync' =>
