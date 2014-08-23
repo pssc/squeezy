@@ -1341,7 +1341,7 @@ while ( 0 <= $#ARGV )
       {
 	 if ( exists $p->{name} || $command{$arg}->{server} ) {
  		$socket = $p->{SOCKET} || undef;
- 		$player = $p->{name} || undef;
+ 		$player = $p->{pid} || $p->{name} || undef;
                 $cpo =  $p; # Needed for groups as def player not set correctly.
                 $server = $p->{server} ? $p->{server}{IP} || $p->{server}{HOST} : $server;
                 $port = $p->{PORT} || $port;
