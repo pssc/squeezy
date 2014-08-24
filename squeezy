@@ -1186,7 +1186,15 @@ sub command
    '-syncgroups' =>
       {
 	 help     => 'show synchronisation groups',
-	 command  => sub { report 'syncgroups', pick_field 2, send_command 'syncgroups ?'; }
+	 server   => 1,
+	 command  => sub { 
+		     my @r = split /\s+/, send_command 'syncgroups ?';
+                     if (shift @r eq 'syncgroups') {
+                        while ($#r > 0) {
+                              print urldecode(shift @r)," ",urldecode(shift @r),"\n";
+                        }
+                     } 
+                  }
       },
 
    '-tick' =>
