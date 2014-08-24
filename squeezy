@@ -547,6 +547,17 @@ sub listen
    $socket = undef;
 }
 
+sub idFromName {
+   my $name = shift;
+
+   foreach my $p (@{$group[ $#group ] }) {
+      if ( ($p->{name} eq $name && $p->{pid} ) || $name eq $p->{pid} ) {
+           return $p->{pid};
+      }
+   }
+   return undef;
+}
+
 # ######################################################################
 # commands
 #
@@ -630,7 +641,7 @@ sub command
     '-if_alarm' =>
 	{
 	   help => 'if alarms are enabled generally and an alarm is enabled',
-command =>
+           command =>
 	   sub { if (notted( my $r = (command('-alarms_enabled') eq "1" && command('-alarms') ne 'count:0')))
 	   { print "$player has ",$r ? "" : "no ","active alarm \n"; &$action; } }
 	},
@@ -1166,9 +1177,9 @@ command =>
 	    sub
 	    {
                # arg needs to be a real player id not name.
-               my $arg = pick_field 0,send_command  urlencode(shift);
-	       send_command  urlencode($player)." sync ".urlencode($arg); #FIXME UTF-8 broken
-	       report 'sync', pick_field 2, send_command  urlencode($player)." sync ?($arg)";
+               my $arg = idFromName(shift);
+	       send_command  urlencode($player)." sync ".urlencode($arg);
+	       report 'sync', pick_field 2, send_command  urlencode($player)." sync ?";
 	    }
       },
 
