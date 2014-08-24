@@ -33,7 +33,7 @@ use strict;
 use IO::Socket;
 use IO::Select;
 use Cwd 'realpath';
-use Data::Dumper;
+use Encode;
 
 #
 # find a configuration file
@@ -142,7 +142,7 @@ sub report
 {
    my $mess = shift;
    my $value = shift;
-   print join(' ', $cpo->{name}|| $player, $mess, &urldecode($value)), "\n";
+   print join(' ', $cpo->{name}|| $player, $mess, $value), "\n";
    return $value;
 }
 
@@ -395,13 +395,14 @@ if ($playerdiscover) {
        {
            for (my $i=0; $i<$count; $i+=1)
            {
-	       my $pn = pick_field 3, send_command "player name $i ?"; 
+	       my $pn = pick_field 3, send_command "player name $i ?";
                my $pid = pick_field 3, send_command "player id $i ?"; 
-	       if ( $pn && $pn ne '?' ) { push @{$group[0]}, { name=>$pn, pid=>$pid , server=>$host } 
+	       if ( $pn && $pn ne '?' ) { 
+                      push @{$group[0]}, { name=>$pn, pid=>$pid , server=>$host } 
                } else {  
-                      # Error?
 	              if ( $pid && $pid ne '?' )
 	                  { push @{$group[0]}, { name=>$pid, server=>$host} } 
+                      warn "Player discovery playname issue $i:$pn:$pid"
                }
            }
            if ( $group[0][0] )
@@ -925,8 +926,8 @@ command =>
          ## not the real player id command as this would need a index or ID we get the name back on failure ie no id.
 	 help     => 'show the id of the player',
 	 command  => sub { 
-                         my $pid = send_command urlencode($player);
-                         if ($pid eq $player) {
+                         my $pid =  $cpo->{pid} || pick_field 0,send_command urlencode($player);
+                         if ($pid eq $cpo->{name}) {
                             report 'player id',  pick_field 0, "None($cpo->{pid})";
                          } else {
                             report 'player id',  pick_field 0, $pid;
@@ -939,8 +940,8 @@ command =>
          ## Needs to be id or index not name if not vaild id we just get the fist players IP back... so check vaild id?
 	 help     => 'show the ip address of the player',
 	 command  => sub { 
-                             my $pid = $cpo->{pid} || send_command urlencode($player);
-                             if ($pid eq $player) {
+                             my $pid = $cpo->{pid} || pick_field 0,send_command urlencode($player);
+                             if ($pid eq $cpo->{name} ) {
                                 report 'player IP', pick_field 0, "None";
                              } else {
                                 report 'player IP',  pick_field 3, send_command "player ip ".urlencode($pid)." ?"; 
@@ -1159,15 +1160,15 @@ command =>
 
    '-sync' =>
       {
-	 help     => 'synchronise player with <arg> (another player; unreliable)',
+	 help     => 'synchronise player with <arg> (another player id )',
 	 do_shift => 1,
 	 command  =>
 	    sub
 	    {
                # arg needs to be a real player id not name.
-               my $arg = send_command  urlencode(shift);
-	       send_command  urlencode($player)." sync ".urlencode($arg);
-	       report 'sync', pick_field 2, send_command  urlencode($player)." sync ?";
+               my $arg = pick_field 0,send_command  urlencode(shift);
+	       send_command  urlencode($player)." sync ".urlencode($arg); #FIXME UTF-8 broken
+	       report 'sync', pick_field 2, send_command  urlencode($player)." sync ?($arg)";
 	    }
       },
 
@@ -1199,7 +1200,7 @@ command =>
 
    '-unsync' =>
       {
-	 help    => 'unsynchronise player (unreliable)',
+	 help    => 'unsynchronise player',
 	 command =>
 	    sub
 	    {
@@ -1249,7 +1250,9 @@ foreach ( @player )
    my $ns = $p;
    $ns =~ s/ /_/g; 	      # remove spaces
    my $lc = lc $ns;           # same, but lower case
-   my $fc = substr($lc,0,1);  # just the first character
+   # Deal with c hars rather than bytes as all lms output is utf8 encoded...
+   my $fc = substr( Encode::decode_utf8($lc),0,1);  # just the first character
+   $fc = Encode::encode_utf8($fc);
    foreach ( $ns, $lc, $fc )
    {
       if ( ! $command{$_} )
@@ -1367,4 +1370,3 @@ while ( 0 <= $#ARGV )
 }
 
 exit(0);
-
