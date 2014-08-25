@@ -1021,6 +1021,56 @@ sub command
 	 command  => sub { report 'playlist length', pick_field 3, send_command  urlencode($player)." playlist tracks ?"; }
       },
 
+   '-playlist_repeat' =>
+      {
+	 help     => 'playlist repeat <0|1|2|?|none|song|all|query|toggle>',
+         do_shift => 1 ,
+	 command  => sub { my $arg = shift;
+                         if ( not($arg eq '?' or $arg eq 0 or $arg eq 1 or $arg eq 2 ) ) {
+                            if ( $arg eq 'none' ) {
+				$arg = 0
+                            } elsif ( $arg eq 'query' ) {
+                               $arg = '?'; 
+                            } elsif ( $arg eq 'song' ) {
+                            	$arg = 1
+                            } elsif ( $arg eq 'all' ) {
+                              	$arg = 2
+                            } else {
+                            	$arg = '';
+                            }
+                         }
+                         report 'playlist repeat', pick_field 3, send_command  urlencode($player)." playlist repeat $arg";
+                         if ($arg eq '') {
+                            command -playlist_repeat, "?";
+                         }
+                     }
+      },
+
+   '-playlist_shuffle' =>
+      {
+	 help     => 'playlist shuffle <0|1|2|?|none|song|album|query|toggle>',
+         do_shift => 1,
+	 command  => sub { my $arg = shift;
+                         if ( not($arg eq '?' or $arg eq 0 or $arg eq 1 or $arg eq 2 ) ) {
+                            if ( $arg eq 'none' ) {
+                               $arg = 0
+                            } elsif ( $arg eq 'query' ) {
+                               $arg = '?'; 
+                            } elsif ( $arg eq 'song' ) {
+                               $arg = 1
+                            } elsif ( $arg eq 'album' ) {
+                               $arg = 2
+                            } else {
+                              $arg = '';
+                            }
+                         }
+                         report 'playlist shuffle', pick_field 3, send_command  urlencode($player)." playlist shuffle $arg";
+                         if ($arg eq '') {
+                            command -playlist_shuffle, "?";
+                         }
+                     }
+      },
+
    '-player_model' =>
       {
          ## Needs to be id or index not name 
@@ -1037,7 +1087,29 @@ sub command
    '-playing' =>
       {
 	 help    => 'show the currently-playing track',
-	 command => sub { report 'playing', pick_field 2, send_command  urlencode($player)." current_title ?"; }
+	 command => sub { 
+                     report 'genre', pick_field 2, send_command  urlencode($player)." genre ?"; 
+                     report 'artist', pick_field 2, send_command  urlencode($player)." artist ?"; 
+                     report 'album', pick_field 2, send_command  urlencode($player)." album ?"; 
+                     command -title;
+                     report 'duration', pick_field 2, send_command  urlencode($player)." duration ?"; 
+                     command '-time', '?';
+                     report 'remote', pick_field 2, send_command  urlencode($player)." remote ?"; 
+                     command -current_title;
+                     report 'path', pick_field 2, send_command  urlencode($player)." path ?"; 
+         }
+      },
+
+   '-title' =>
+      {
+	 help    => 'show the track title ',
+	 command => sub { report 'title', pick_field 2, send_command  urlencode($player)." title ?"; }
+      },
+
+   '-current_title' =>
+      {
+	 help    => 'show the current title',
+	 command => sub { report 'current_title', pick_field 2, send_command  urlencode($player)." current_title ?"; }
       },
 
    '-power' =>
@@ -1211,7 +1283,7 @@ sub command
 	    sub
 	    {
 	       my $time = shift;
-	       if ( ! ( $time =~ m/^[+-]?[0-9]{1,}$/ ) )
+	       if ( ! ( $time =~ m/^[+-]?[?0-9]{1,}$/ ) )
 		  { die "squeezy -time: invalid time specifier ($time)\n"; }
 	       report 'time', pick_field 2, send_command urlencode($player)." time $time";
 	    }
@@ -1309,9 +1381,8 @@ $command{'-'}              = $command{-quieter}          if ! $command{'-'};
 $command{'--'}             = $command{-Quieter}          if ! $command{'--'};
 $command{'+'}              = $command{-louder}           if ! $command{'+'};
 $command{'++'}             = $command{-Louder}           if ! $command{'++'};
-$command{-currenttitle}    = $command{-playing}          if ! $command{-currenttitle};
+$command{-currenttitle}    = $command{-current_title}    if ! $command{-currenttitle};
 $command{-playlist_remove} = $command{-playlist_delete}  if ! $command{-playlist_remove};
-$command{-title}           = $command{-playing}          if ! $command{-title};
 $command{-prev}            = $command{-previous}         if ! $command{-prev};
 $command{-goto}            = $command{-jump}             if ! $command{-goto};
 $command{'--help'}         = $command{-help}             if ! $command{'--help'};
