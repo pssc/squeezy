@@ -90,6 +90,9 @@ my $json_api_uri_pre = "http://";
 my $socket = undef;
 my $action = sub{};
 my $not = 0;
+my $serverss ='';
+my $playerss ='';
+my $verbose = 0;
 
 #
 # utilities
@@ -382,7 +385,7 @@ if ( $autodiscover ) {
 if (scalar(@servers) == 0 ) {
      push @servers, { HOST=>$server, PORT=>$port} 
 } elsif (scalar(@servers) > 1 ) {
-      print 'servers: ', join(', ', map { $_->{NAME}.":".($_->{HOST} || "uknown").":".($_->{IP} || "unkown")  } @servers), "\n";
+      $serverss = 'servers: ', join(', ', map { $_->{NAME}.":".($_->{HOST} || "uknown").":".($_->{IP} || "unkown")  } @servers), "\n";
 }
 
 if ($playerdiscover) {
@@ -413,7 +416,7 @@ if ($playerdiscover) {
 	       } else {
                   $name = "(".$name.")";
 	       }
-	       print 'players: ', join(', ', map { $_->{name}.$name } @{$group[0]}), "\n";
+	       $playerss.= 'players auto discovered: '. join(', ', map { $_->{name}.$name } @{$group[0]}). "\n";
            }
        }
        $host->{SOCKET} = $socket;
@@ -881,7 +884,17 @@ sub command
    '-options' =>
       {
 	 help    => 'list all options to standard output (useful for configuring shell completion)',
-	 command => sub { print join(' ', sort keys %command), "\n"; }
+	 server   => 1,
+	 command => sub {
+	       foreach my $command ( sort keys %command )
+	       {
+		  if ( not $command{$command}->{deprecated})
+		  {
+		     print $command," ";
+		  }
+	       }
+               print "\n";
+	    }
       },
 
    '-pause' =>
@@ -1320,6 +1333,17 @@ sub command
 	       report 'volume', pick_field 3, send_command urlencode($player)." mixer volume ?";
 	    }
       },
+
+   '-verbose' =>
+      {
+	 help     => 'show serves and players amongst other info',
+	 server   => 1,
+	 command  => sub {
+                        $verbose = 1;
+			print $serverss if ($serverss);
+			print $playerss if ($playerss);
+                  }
+      },
 );
 
 #
@@ -1386,6 +1410,7 @@ $command{-playlist_remove} = $command{-playlist_delete}  if ! $command{-playlist
 $command{-prev}            = $command{-previous}         if ! $command{-prev};
 $command{-goto}            = $command{-jump}             if ! $command{-goto};
 $command{'--help'}         = $command{-help}             if ! $command{'--help'};
+$command{'--verbose'}      = $command{-verbose}          if ! $command{'--verbose'};
 
 #
 # if the name of this "executable" is also the name of a player, then select
