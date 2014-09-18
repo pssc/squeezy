@@ -93,6 +93,7 @@ my $not = 0;
 my $serverss ='';
 my $playerss ='';
 my $verbose = 0;
+my $skip = {};
 
 #
 # utilities
@@ -647,7 +648,7 @@ sub command
 	   help => 'if alarms are enabled generally and an alarm is enabled',
            command =>
 	   sub { if (notted( my $r = (command('-alarms_enabled') eq "1" && command('-alarms') ne 'count:0')))
-	   { print "$player has ",$r ? "" : "no ","active alarm \n"; &$action; } }
+	   { print $cpo->{name}," has ",$r ? "" : "no ","active alarm \n"; &$action; } }
 	},
 
    '-die_if_playing' =>
@@ -656,7 +657,7 @@ sub command
          deprecated => 1,
 	 command =>
 	    sub { if ( command('-power') && command('-mode') eq 'play' )
-		     { print "$player is on and playing, exiting immediately\n"; exit(1); } }
+		     { print $cpo->{name}," is on and playing, exiting immediately\n"; exit(1); } }
       },
 
    '-elapsed' =>
@@ -669,7 +670,13 @@ sub command
         {
           help    => 'set up action for -if_XXXX to exit with specified code',
           do_shift => 1,
-          command => sub { my $ecode = shift ;$action = sub { print "Exiting $ecode\n"; exit($ecode); $action=sub{} } },
+          command => sub { my $ecode = shift ;$action = sub { print "Exiting $ecode\n" if $verbose; exit($ecode); }},
+        },
+
+    '-skip'=>
+        {
+          help    => 'set up action for -if_XXXX to skip to next player',
+          command => sub { $action = sub { print "Skipping ",$cpo->{name},"\n" if $verbose; $skip->{$player}=1; }},
         },
 
     '-not' =>
@@ -682,14 +689,14 @@ sub command
 	{
 	   help => 'if this player is not connected',
 	   command => sub { if (notted( my $r = command('-connected') eq 1) )
-	   { print "$player is ",$r ? "" : "not " ,"connected\n"; &$action; } }
+	   { print $cpo->{name}," is ",$r ? "" : "not " ,"connected\n"; &$action; } }
 	},
 
    '-if_playing' =>
         {
 	   help => 'if this player is on and playing',
 	   command => sub { if (notted( my $r = (command('-power') eq "1" && command('-mode') eq 'play')) )
-	   { print "$player is ",$r ? "on and" : "not" ," playing,\n"; &$action; } }
+	   { print $cpo->{name}," is ",$r ? "on and" : "not" ," playing,\n"; &$action; } }
         },
 
    '-if_sleeping' =>
@@ -697,7 +704,7 @@ sub command
 	 help    => 'if this player is on and is timing down to sleep',
 	 command =>
 	    sub { if ( notted( my $r = (command('-power') eq "1" && command('-sleeping') ) ) )
-		{ print "$player is ",$r ? "on and" : "not" ," timing down to sleep\n"; &$action; } }
+		{ print $cpo->{name}," is ",$r ? "on and" : "not" ," timing down to sleep\n"; &$action; } }
 	},
 
    '-exit_if_playing' =>
@@ -706,7 +713,7 @@ sub command
          deprecated => 1,
 	 command =>
 	    sub { if ( command('-power') && command('-mode') eq 'play')
-		     { print "$player is on and playing, exiting immediately\n"; exit(0); } }
+		     { print $cpo->{name}," is on and playing, exiting immediately\n"; exit(0); } }
       },
 
    '-exit_if_sleeping' =>
@@ -716,7 +723,7 @@ sub command
 	 command =>
 	    sub {
 	       if ( command('-power') && command('-sleeping') )
-		     { print "$player is on and timing down to sleep, exiting immediately\n"; exit(0); } }
+		     { print $cpo->{name}," is on and timing down to sleep, exiting immediately\n"; exit(0); } }
       },
 
    '-group' =>
@@ -1463,6 +1470,10 @@ while ( 0 <= $#ARGV )
  		$player = $p->{pid} || $p->{name} || undef;
                 $cpo =  $p; # Needed for groups as def player not set correctly.
                 $server = $p->{server} ? $p->{server}{IP} || $p->{server}{HOST} : $server;
+		if ($skip->{$player}) {
+			$skip->{$player} = 0;
+			next;
+		}
                 $port = $p->{PORT} || $port;
                 if ( $command{$arg}->{json} ) {
                     ## FIXME some commands operate on server only...
