@@ -55,7 +55,7 @@ my $conf_file = $conf_file[0];
 #
 # some globals
 #
-my $module     = "JSON::RPC::Client";
+my $json_module     = "JSON::RPC::Client";
 my $my_name    =  "/$0";
    $my_name    =~ s:^.*/::;
 my $server     = 'localhost';
@@ -102,17 +102,24 @@ sub json_support {
     my $soft = shift;
      
     # check whether module is already loaded
-    return 1 if defined $INC{'JSON/RPC/Client.pm'};
+    return 1 if (defined $INC{'JSON/RPC/Client.pm'} or defined $INC{'JSON/RPC/Legacy/Client.pm'});
 
     eval {
         require JSON::RPC::Client;
         JSON::RPC::Client->import();
     };
+    if ($@) {
+        eval {
+           $json_module = 'JSON::RPC::Legacy::Client';
+           require JSON::RPC::Legacy::Client;
+           JSON::RPC::Legacy::Client->import();
+        };
+    }
 
     if ($@) {
        warn "Install JSON support: sudo apt-get install libjson-rpc-perl" if ( -r "/etc/debian_version" );
-       die "JSON features not supported: JSON::RPC::Client not available" if not $soft;
-       warn "JSON features not supported: JSON::RPC::Client not available... Trying to cope." if $soft > 1;
+       die "JSON features not supported: JSON::RPC::(Legacy::)Client not available" if not $soft;
+       warn "JSON features not supported: JSON::RPC::(Legacy::)Client not available... Trying to cope." if $soft > 1;
        return 0;
     }
     return 1;
@@ -237,7 +244,7 @@ sub slimrequest {
    my ($server, $player, $command_and_ags) = @_;
    json_support();
 
-   my $client = $server->{JSONC} ? $server->{JSONC} : new JSON::RPC::Client;
+   my $client = $server->{JSONC} ? $server->{JSONC} : new $json_module;
    my $uri    = $json_api_uri_pre.($server->{IP}||$server->{HOST}).":".($server->{JSON}||$json).$json_api_uri_post;
 
    my $callobj = {
