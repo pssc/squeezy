@@ -88,7 +88,8 @@ my $timeout = $showtime +1;
 my $json_api_uri_post = "/jsonrpc.js";
 my $json_api_uri_pre = "http://";
 my $socket = undef;
-my $action = sub{};
+my $action_def = sub{ };
+my $action = $action_def;
 my $not = 0;
 my $serverss ='';
 my $playerss ='';
@@ -687,7 +688,7 @@ sub command
     '-skip'=>
         {
           help    => 'set up action for -if_XXXX to skip to next player',
-          command => sub { $action = sub { print "Skipping ",$cpo->{name},"\n" if $verbose; $skip->{$player}=1; }},
+          command => sub { $action = sub { print "Skipping ",$cpo->{name},"\n" if $verbose; $skip->{$player}=1; $action = $action_def; &$action; }},
         },
 
     '-not' =>
@@ -1500,6 +1501,9 @@ while ( 0 <= $#ARGV )
       
       if ( $command{$arg}->{do_shift} )
 	 { shift @ARGV; }
+
+      if ( $arg ~=/-if_.*/ )
+	{ $not = 0; }
 
       next;
    }
