@@ -1502,7 +1502,7 @@ while ( 0 <= $#ARGV )
       if ( $command{$arg}->{do_shift} )
 	 { shift @ARGV; }
 
-      if ( $arg ~=/-if_.*/ )
+      if ( $arg =~ /-if_.*/ )
 	{ $not = 0; }
 
       next;
