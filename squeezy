@@ -1194,11 +1194,11 @@ sub command
 	 server   => 1,
 	 do_shift => 1,
          command  => sub { my $st = urlencode shift;
-                 if    ($st == "changes"   ) { $st ="rescan"; }
-                 elsif ($st == "playlists" ) { $st ="rescan playlists"; }
-                 elsif ($st == "clean"     ) { $st ="wipecache"; }
-                 elsif ($st == "wipe"      ) { $st ="wipecache"; }
-                 elsif ($st == "all"       ) { $st ="wipecache"; }
+                 if    ($st eq "changes"   ) { $st ="rescan"; }
+                 elsif ($st eq "playlists" ) { $st ="rescan playlists"; }
+                 elsif ($st eq "clean"     ) { $st ="wipecache"; }
+                 elsif ($st eq "wipe"      ) { $st ="wipecache"; }
+                 elsif ($st eq "all"       ) { $st ="wipecache"; }
                  else                      { $st= "rescan ".urlencode($st); }
                  send_command $st;
          }
