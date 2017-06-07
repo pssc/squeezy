@@ -34,6 +34,7 @@ use IO::Socket;
 use IO::Select;
 use Cwd 'realpath';
 use Encode;
+#use Data::Dumper;
 
 #
 # find a configuration file
@@ -305,7 +306,8 @@ if ( -r $conf_file )
 	 && do
 	 {  if ( $#arg == 1 ) { push @{$group[0]},       { name=>$arg[1]}; next; }
 	    if ( $#arg == 2 ) { push @{$group[$arg[1]]}, { name=>$arg[2]}; next; } 
-	    if ( $#arg == 3 ) { push @{$group[$arg[1]]}, { name=>$arg[2], server=>{HOST=>$arg[3]}}; next; } };
+	    if ( $#arg == 3 ) { push @{$group[$arg[1]]}, { name=>$arg[2], server=>{HOST=>$arg[3]}}; next; }
+	    if ( $#arg == 4 ) { push @{$group[$arg[1]]}, { name=>$arg[2], server=>{HOST=>$arg[3]}, pid=>$arg[4]}; next; }; };
 
       $arg[0] eq 'shortcut' && $#arg == 2
 	 && do
@@ -345,7 +347,7 @@ if ( -r $conf_file )
    }
 
    close CONFIG;
-} 
+}
 
 
 
@@ -397,7 +399,7 @@ if ( $autodiscover ) {
 } 
 
 if (scalar(@servers) == 0 ) {
-     push @servers, { HOST=>$server, PORT=>$port} 
+     push @servers, { HOST=>$server, PORT=>$port};
 } elsif (scalar(@servers) > 1 ) {
       $serverss = 'servers: ', join(', ', map { $_->{NAME}.":".($_->{HOST} || "uknown").":".($_->{IP} || "unkown")  } @servers), "\n";
 }
@@ -800,7 +802,7 @@ sub command
 	do_shift => 1,
         command  => sub {
                             my $result = slimrequest(shift,shift,[split(/\s+/,shift,-1)]); 
-                            print Dumper($result);
+                            #print Dumper($result);
                             #if (ref $result eq 'HASH') {
                             #   foreach (keys $result) {
                             #      print $_,": ",$$result{$_},"\n";;
@@ -952,6 +954,7 @@ sub command
    '-player_count' =>
       {
 	 help    => 'show the number of connected players',
+	 server   => 1,
 	 command  => sub { report 'player count', pick_field 2, send_command 'player count ?'; }
       },
 
