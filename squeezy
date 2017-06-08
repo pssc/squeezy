@@ -61,6 +61,7 @@ my $my_name    =  "/$0";
    $my_name    =~ s:^.*/::;
 my $server     = 'localhost';
 my $port       =  9090;
+my $port_def   =  9090;
 my $json       =  9000;
 my $username   =  undef;
 my $password   =  undef;
@@ -86,6 +87,9 @@ my @udp_ports = (3483);
 my $DISCOVERY_PERIOD = 1;   # discovery period
 my $showtime = 7;
 my $timeout = $showtime +1;
+my $timeout_aws = $timeout+3;
+my $delay_aws = 3;
+my $retry_aws = 3;
 my $json_api_uri_post = "/jsonrpc.js";
 my $json_api_uri_pre = "http://";
 my $socket = undef;
@@ -100,6 +104,31 @@ my $skip = {};
 #
 # utilities
 #
+
+sub aws_support {
+    my $soft = shift;
+
+    return 1 if (defined $INC{'Amazon/SQS/Simple.pm'});
+
+    eval {
+        require Amazon::SQS::Simple;
+        Amazon::SQS::Simple->import();
+    };
+
+    if ($@) {
+       if ( -r "/etc/debian_version" ) {
+          warn "Install AWS support: sudo apt-get install libamazon-sqs-simple-perl" if ( -r "/etc/debian_version" );
+       } else {
+          warn "Install AWS support: cpan App::cpanminus; cpanm Amazon::SQS::Simple";
+       }
+       die "AWS features not supported: Amazon::SQS::Simple not available" if not $soft;
+       warn "AWS features not supported: Amazon::SQS::Simple not available... Trying to cope." if $soft > 1;
+       return 0;
+    }
+    return 1;
+}
+
+
 sub json_support {
     my $soft = shift;
      
@@ -192,10 +221,83 @@ sub terminal_cols
 #
 # server socket commands
 #
-sub send_command
-{
+sub send_command {
    # this a syncronous command/response interaction, one line is sent to the
    # server and one line is received in response (and returned)
+   # if hash? FIXME
+   if (ref($server) eq "HASH" && $server->{HOST} eq 'aws') {
+      return send_command_aws(@_);
+   } else {
+      return send_command_cli(@_);
+   }
+   # FIXME json also?
+}
+
+sub aws_recv {
+   my $recv = shift;
+   my $timeout = shift;
+   # Retrieve responce
+   my @msgs;
+   foreach my $try (1..$retry_aws) {
+      eval {
+         @msgs = $recv->ReceiveMessageBatch(WaitTimeSeconds=>$timeout);
+      };
+      if ($@ && $@ !~ / Forbidden 403/) {
+         #FIXME do we need to save url for this
+         sleep $delay_aws;
+         warn($recv," ",$@);
+         next;
+      }
+      last;
+   }
+   if ($#msgs < 0) {
+      return;
+   }
+   my $body = $msgs[$#msgs]->MessageBody();
+   $recv->DeleteMessageBatch(\@msgs);
+   return $body;
+}
+
+sub send_command_aws {
+   use Amazon::SQS::Simple;
+   use Time::HiRes;
+
+   # Create an SQS object
+   print "AWS Access ID $server->{'ACCESS'}\n" if $verbose;
+   my $sqs = new Amazon::SQS::Simple($server->{'ACCESS'}, $server->{'SECRET'});
+
+   # Get a queues
+   my $send = $sqs->GetQueue($server->{'SEND'});
+   my $recv = $sqs->GetQueue($server->{'RECV'});
+
+   # clear rev queue
+   aws_recv($recv,0);
+
+   # Send command
+   my $response;
+   foreach my $try (1..$retry_aws) {
+      eval {
+		$response = $send->SendMessage(join(" ", @_). "\n",MessageGroupId => 'squeezy',MessageDeduplicationId => Time::HiRes::time());
+      };
+      if ($@ && $@ !~ / Forbidden 403/) {
+         #FIXME do we need to save url for this
+         sleep $delay_aws;
+         warn($send," ",$@);
+         next;
+      }
+      last;
+   }
+   if (not defined $response) {
+      return;
+   }
+
+   my $body = aws_recv($recv,$timeout_aws);
+   chomp $body;
+   return $body;
+}
+
+
+sub send_command_cli {
    if ( ! $socket )
    {
       $socket  = IO::Socket::INET -> new ( PeerAddr => $server,
@@ -297,6 +399,7 @@ if ( -r $conf_file )
       $arg[0] eq 'server'   && $#arg == 1 && do { $server   = $arg[1]; push @servers, { HOST => $arg[1] }; next; };
       $arg[0] eq 'server'   && $#arg == 2 && do { $server   = $arg[1]; push @servers, { HOST => $arg[1], PORT => $arg[2]}; next; };
       $arg[0] eq 'server'   && $#arg == 3 && do { $server   = $arg[1]; push @servers, { HOST => $arg[1], PORT => $arg[2], JSON => $arg[3]}; next; };
+      $arg[0] eq 'server'   && $#arg == 6 && do { $server   = $arg[1]; push @servers, { NAME => $arg[1], HOST => $arg[2], ACCESS=>$arg[3], SECRET=>$arg[4], SEND=>$arg[5], RECV=>$arg[6]}; aws_support(); next; };
       $arg[0] eq 'port'     && $#arg == 1 && do { $port     = $arg[1]; next; };
       $arg[0] eq 'json'     && $#arg == 1 && do { $json     = $arg[1]; next; };
       $arg[0] eq 'username' && $#arg == 1 && do { $username = $arg[1]; next; };
@@ -401,14 +504,19 @@ if ( $autodiscover ) {
 if (scalar(@servers) == 0 ) {
      push @servers, { HOST=>$server, PORT=>$port};
 } elsif (scalar(@servers) > 1 ) {
-      $serverss = 'servers: ', join(', ', map { $_->{NAME}.":".($_->{HOST} || "uknown").":".($_->{IP} || "unkown")  } @servers), "\n";
+      $serverss = 'servers: '. join(', ', map { $_->{NAME}.":".($_->{HOST} || "uknown").":".($_->{IP} ||$_->{SEND}|| "unkown") } @servers) ."\n";
 }
 
 if ($playerdiscover) {
-    # ask squeezeservers on 9090 
-    # for the names of players
+    # ask squeezeservers for the names of players
    foreach my $host (@servers) {
-       $server = $host->{IP} || $host->{HOST};
+       if ($host->{HOST} eq 'aws' and $host->{SEND}) {
+           $server = $host
+       } else {
+           $server = $host->{IP} || $host->{HOST};
+       }
+       $port = $host->{PORT} || $port_def;
+
        my $count = pick_field 2, send_command 'player count ?';
        if ( $count )
        {
@@ -437,6 +545,9 @@ if ($playerdiscover) {
        }
        $host->{SOCKET} = $socket;
        $socket = undef;
+   }
+   if ( $group[0][0] ) {
+       $playerss = 'players auto discovered: '. join(', ', map { $_->{name}.(scalar(@servers) eq 1? '':"(".($_->{server}->{NAME} || $_->{server}->{HOST} || $_->{server}->{IP}).")") } @{$group[0]}). "\n";
    }
 }
 
@@ -1485,13 +1596,14 @@ while ( 0 <= $#ARGV )
  		$player = $p->{pid} || $p->{name} || undef;
                 $cpo =  $p; # Needed for groups as def player not set correctly.
                 $server = $p->{server} ? $p->{server}{IP} || $p->{server}{HOST} : $server;
+                $server = ($p->{server} && $p->{server}{SEND}) ? $p->{server} : $server;
 		if ($skip->{$player}) {
 			$skip->{$player} = 0;
 			next;
 		}
                 $port = $p->{PORT} || $port;
                 if ( $command{$arg}->{json} ) {
-                    ## FIXME some commands operate on server only...
+                    ## FIXME some commands operate on server only... select server? rather than player...
 	 	    command $arg, ($p->{server} ||$servers[0]), $p, $ARGV[0];
                 } else {
 	 	    command $arg, $ARGV[0];
