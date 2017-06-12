@@ -245,7 +245,7 @@ sub aws_recv {
       if ($@ && $@ !~ / Forbidden 403/) {
          #FIXME do we need to save url for this
          sleep $delay_aws;
-         warn($recv," ",$@);
+         warn("Recv ",$try," to ",$recv," ",$@);
          next;
       }
       last;
@@ -274,15 +274,17 @@ sub send_command_aws {
    aws_recv($recv,0);
 
    # Send command
+   my $id = 'squeezy.'.$server->{'ACCESS'}.'.'.$$;
+   my $time = Time::HiRes::time();
    my $response;
    foreach my $try (1..$retry_aws) {
       eval {
-		$response = $send->SendMessage(join(" ", @_). "\n",MessageGroupId => 'squeezy',MessageDeduplicationId => Time::HiRes::time());
+		$response = $send->SendMessage(join(" ", @_). "\n",MessageGroupId => $id, MessageDeduplicationId => $id.'.'.$time);
       };
       if ($@ && $@ !~ / Forbidden 403/) {
          #FIXME do we need to save url for this
          sleep $delay_aws;
-         warn($send," ",$@);
+         warn("Send Try ",$try," for ",$send," ",$@);
          next;
       }
       last;
