@@ -99,6 +99,7 @@ my $not = 0;
 my $serverss ='';
 my $playerss ='';
 my $verbose = 0;
+my $debug = 0;
 my $skip = {};
 
 #
@@ -398,6 +399,8 @@ if ( -r $conf_file )
 
       my @arg = split /\s+/;
 
+      $arg[0] eq 'debug'    && do { $debug   = 1; next; };
+      $arg[0] eq 'verbose'  && do { $verbose = 1; next; };
       $arg[0] eq 'server'   && $#arg == 1 && do { $server   = $arg[1]; push @servers, { HOST => $arg[1] }; next; };
       $arg[0] eq 'server'   && $#arg == 2 && do { $server   = $arg[1]; push @servers, { HOST => $arg[1], PORT => $arg[2]}; next; };
       $arg[0] eq 'server'   && $#arg == 3 && do { $server   = $arg[1]; push @servers, { HOST => $arg[1], PORT => $arg[2], JSON => $arg[3]}; next; };
@@ -461,7 +464,7 @@ if ( $autodiscover ) {
       socket(my $socket, AF_INET, SOCK_DGRAM, getprotobyname('udp'));
       setsockopt($socket, SOL_SOCKET, SO_BROADCAST, 1);
       my $destpaddr = sockaddr_in($port, INADDR_BROADCAST);
-      send($socket, "eIPAD\0NAME\0JSON\0VERS\0UUID\0", 0, $destpaddr);
+      send($socket, "eIPAD\0NAME\0JSON\0VERS\0UUID\0CLIP\0", 0, $destpaddr);
       my $wait = IO::Select->new($socket);
 
       while (my ($found) = $wait->can_read($DISCOVERY_PERIOD)) {
@@ -479,7 +482,7 @@ if ( $autodiscover ) {
                 $len2 = unpack("xxxxC", $msg);
                 $val  = $len2 ? substr($msg, 5, $len2) : undef;
 
-                # print(" TLV: $tag len: $len2, $val");
+                print(" TLV: $tag len: $len2, $val\n") if $debug;
 
                 $bag->{$tag} = $val;
 
@@ -492,7 +495,8 @@ if ( $autodiscover ) {
             my ($portno, $ipaddr) = sockaddr_in($clientpaddr);
             $bag->{IP} = inet_ntoa($ipaddr);
             $bag->{HOST} = gethostbyaddr($ipaddr, AF_INET);
-            if (json_support(2)) {
+	    $bag->{PORT} = $bag->{CLIP} if (defined $bag->{CLIP});
+            if ((not defined $bag->{PORT}) && json_support(2)) {
                 my $cliport = jsonp('_p2',slimrequest($bag,undef,["pref" ,"plugin.cli:cliport","?" ]));
    	        $bag->{PORT} = $cliport if $cliport; 
 	    }
