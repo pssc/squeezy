@@ -196,6 +196,7 @@ sub report
 
 sub jsonr {
    my ($key , $r) = @_;
+   $r = $r->result;
     if (ref($r) eq "HASH") {
       print $$r{$key}."\n";
     } else {
@@ -205,6 +206,7 @@ sub jsonr {
 
 sub jsonp {
    my ($key , $r) = @_;
+    $r = $r->result;
     if (ref($r) eq "HASH" and defined $$r{$key}) {
       return $$r{$key};
     } else {
@@ -363,17 +365,18 @@ sub slimrequest {
    };
 
    $client->version($version);
-   $client->id("squeezy");
+   $client->id("squeezy.$$");
 
-   $callobj->{params} = [ ($player->{name} || "") ,$command_and_ags ];
+   $callobj->{params} = [ ($player->{pid} || $player->{name} || "") ,$command_and_ags ];
 
    my $res = $client->call($uri, $callobj);
+   # FIXME error warn or die? carp?
    if($res) {
       if ($res->is_error) {
           return "Error : ". $res->error_message;
       }
       else {
-          return $res->result;
+          return $res;
       }
    }
    else {
@@ -913,18 +916,18 @@ sub command
 
    '-json' =>
       {
-        help  => "send command via JSON interface quoted as one argument",
+        help  => "send command via JSON interface quoted as one argument, eg 'player count ?' returns JSON result text",
 	json => 1,
 	server => 1,
 	do_shift => 1,
         command  => sub {
-                            my $result = slimrequest(shift,shift,[split(/\s+/,shift,-1)]); 
-                            #print Dumper($result);
-                            #if (ref $result eq 'HASH') {
-                            #   foreach (keys $result) {
-                            #      print $_,": ",$$result{$_},"\n";;
-                            #   }
-			    #} else { print "undef\n";}
+			    my $r = slimrequest(shift,shift,[split(/\s+/,shift,-1)]);
+                            if ( $verbose ) {
+			       print $r->jsontext,"\n";
+                            } else {
+			       use JSON;
+			       print JSON::encode_json($r->result),"\n";
+			    }
         }
       },
 
