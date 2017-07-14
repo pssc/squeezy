@@ -1,8 +1,6 @@
 #!/usr/bin/env perl
-#
-# Version:
-my $version="0.27";
 
+my $version="0.27";
 my $blerb="
   Squeezy:
       A command-line utility for controlling squeezebox network audio players via their squeezeserver.
@@ -24,7 +22,6 @@ my $blerb="
      squeezy --help
 
 ";
-
 use strict;
 
 #
@@ -359,28 +356,38 @@ sub slimrequest {
 
    my $client = $server->{JSONC} ? $server->{JSONC} : new $json_module;
    my $uri    = $json_api_uri_pre.($server->{IP}||$server->{HOST}).":".($server->{JSON}||$json).$json_api_uri_post;
-
-   my $callobj = {
+   my $o = {
       method  => 'slim.request',
+      version => '1.0',
+      id => "squeezy.$version.$$",
+      params => [ ($player->{pid} || $player->{name} || "") ,$command_and_ags ],
    };
 
-   $client->version($version);
-   $client->id("squeezy.$$");
-
-   $callobj->{params} = [ ($player->{pid} || $player->{name} || "") ,$command_and_ags ];
-
-   my $res = $client->call($uri, $callobj);
-   # FIXME error warn or die? carp?
-   if($res) {
-      if ($res->is_error) {
-          return "Error : ". $res->error_message;
+   if ( $server->{HOST} eq 'aws' ) {
+      use JSON;
+      use Class::Struct;
+      struct( DUMMY_RO => { jsontext => '$', result => '*%' });
+      my $c = JSON::encode_json($o);
+      print $c,"\n" if ($debug);
+      my $resp = send_command_aws(JSON::encode_json($o));
+      print $resp,"\n" if ($debug);
+      return new DUMMY_RO(jsontext => $resp, result => { error => 'No json object returned' }) if ($resp !~ /^{.*}$/);#die?
+      my $ro = JSON::decode_json($resp);
+      return new DUMMY_RO(jsontext => $resp, result => $ro->{result});
+   } else {
+      $client->version($o->{version}); # RPC version
+      $client->id($o->{id});
+      my $res = $client->call($uri, $o);
+      # FIXME error warn or die? carp?
+      if ($res) {
+         if ($res->is_error) {
+            return "Error : ". $res->error_message;
+         } else {
+            return $res;
+         }
+      } else {
+         return $client->status_line."\n";
       }
-      else {
-          return $res;
-      }
-   }
-   else {
-      return $client->status_line."\n";
    }
 }
 
