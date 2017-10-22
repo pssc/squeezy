@@ -259,7 +259,6 @@ sub aws_recv {
 }
 
 sub send_command_aws {
-   use Amazon::SQS::Simple;
    use Time::HiRes;
 
    # Create an SQS object
