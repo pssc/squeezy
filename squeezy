@@ -134,6 +134,11 @@ sub json_support {
     return 1 if (defined $INC{'JSON/RPC/Client.pm'} or defined $INC{'JSON/RPC/Legacy/Client.pm'});
 
     eval {
+        require JSON;
+        JSON->import();
+    };
+
+    eval {
         require JSON::RPC::Client;
         JSON::RPC::Client->import();
     };
@@ -929,10 +934,9 @@ sub command
         command  => sub {
 			    my $r = slimrequest(shift,shift,[split(/\s+/,shift,-1)]);
                             if ( $verbose ) {
+			       # full request + responce
 			       print $r->jsontext,"\n";
                             } else {
-			       # just use jsontext?
-			       use if (!$verbose), "JSON";
 			       print JSON::encode_json($r->result),"\n";
 			    }
         }
