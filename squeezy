@@ -363,8 +363,8 @@ sub slimrequest {
    };
 
    if ( $server->{HOST} eq 'aws' ) {
-      use JSON;
-      use Class::Struct;
+      use if ($server->{HOST} eq 'aws'), "JSON";
+      use if ($server->{HOST} eq 'aws'), "Class::Struct";
       struct( DUMMY_RO => { jsontext => '$', result => '*%' });
       my $c = JSON::encode_json($o);
       print $c,"\n" if ($debug);
@@ -931,7 +931,8 @@ sub command
                             if ( $verbose ) {
 			       print $r->jsontext,"\n";
                             } else {
-			       use JSON;
+			       # just use jsontext?
+			       use if (!$verbose), "JSON";
 			       print JSON::encode_json($r->result),"\n";
 			    }
         }
