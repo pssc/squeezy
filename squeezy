@@ -584,8 +584,7 @@ while ( ! $def_player )
    $def_player = $player[0];
    if ( !$def_player )
    {
-      print STDERR "squeezy warning: no players specified or detected\n";
-      print STDERR "                 you likely won't be able to do much without them\n";
+      #print STDERR "squeezy warning: no players specified or detected\n";
       #$group[0][0] = 'NO_PLAYERS_THIS_WILL_NOT_WORK';
       last;
    }
@@ -1604,6 +1603,11 @@ while ( 0 <= $#ARGV )
 	    { die "squeezy $arg: no argument where argument required\n"; }
 	 if ( $command{$argument} )
 	    { die "squeezy $arg: invalid argument ($argument, which rather looks like an option)\n"; }
+      }
+
+      if ( !$command{$arg}->{server} && !$def_player ) {
+         print STDERR "squeezy warning: no players specified or detected\n";
+         print STDERR "                 you likely won't be able to do much without them\n";
       }
 
       #
